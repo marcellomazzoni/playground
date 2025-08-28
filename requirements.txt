@@ -1,0 +1,16 @@
+# Requirements generated from project imports
+# Source files scanned: app.py, KNN.py, Random Forest.py, SVM.py, preprocessing.py
+# Notes:
+# - Standard library modules (os, re) are intentionally omitted.
+# - 'sklearn' import maps to the pip package 'scikit-learn'.
+# - 'dateutil' import maps to the pip package 'python-dateutil'.
+# - Versions are set as lower-bounds for broad compatibility; tighten pins as needed.
+
+numpy>=1.23
+pandas>=1.5
+matplotlib>=3.7
+seaborn>=0.12
+scikit-learn>=1.2
+streamlit>=1.32
+python-dateutil>=2.8
+requests>=2.31
