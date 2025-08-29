@@ -29,7 +29,8 @@ def ask_llm(df_name, column_name, request):
     # Instructions
     You create a python snippet, which is your only output.
     Your snippet will address the requested column of the dataframe, only performing what is asked.
-    DO NOT CHANGE th original dataframe and column of interest, apply what requested on a newly generated series, called "lm_transformed_column".
+    DO NOT CHANGE the original dataframe and column of interest, apply what requested on a newly generated series.
+    IMPORTANT: The output series MUST be named exactly "lm_transformed_column"
     You can only use pandas, numpy, math and re.
     Never wrap the output in a markdown format, like ```python ```.
 
@@ -63,13 +64,13 @@ def ask_llm(df_name, column_name, request):
     except Exception as e:
         # BUGFIX: robust error handling so the UI doesn’t crash if the endpoint is down
         st.error(f"LLM call failed: {e}")
-        return None, None
+        return None
 
     # Remove any fenced code blocks if present (``` or ```python)
     code = re.sub(r"^```(?:python)?\s*", "", code.strip(), flags=re.IGNORECASE)
     code = re.sub(r"\s*```$", "", code.strip(), flags=re.IGNORECASE)
 
-    return code, None  # code returned; series will be built where we have access to df
+    return code  # code returned; series will be built where we have access to df
 
 # ----------------------------------------------------------------------------
 # Helper: Outlier share via IQR (numeric only)

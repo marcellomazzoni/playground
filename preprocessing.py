@@ -11,6 +11,7 @@ import pandas as pd
 import os
 import numpy as np
 import re
+from src.util import action_radio_for_column
 from sklearn.impute import KNNImputer
 from src.data_clean import get_autotype, ask_llm, iqr_outlier_percent, infer_datetime_format
 # import requests  # will import lazily inside ask_llm to avoid import errors if requests not installed
@@ -226,7 +227,7 @@ You can select a new, general, transformation.""")
 
     # Lowercase column names (safe rename)
     with st.expander("Lowercase variables names"):
-        to_lowercase = st.multiselect("Lowercase column names", options=[""] + list(df.columns))
+        to_lowercase = st.multiselect("Select variables to lowercase", options=[""] + list(df.columns))
         if st.button("Apply", key="apply_lowercase_colnames"):
             if not to_lowercase:
                 st.info("Select at least one column to rename.")
@@ -275,16 +276,7 @@ You can select a new variable to transform.""")
 
         # -------------------- Continuous --------------------
         if vartype == "Continuous":
-            action = st.radio(
-                "Choose an action",
-                [   "Manage outliers",
-                    "Manage missing values",
-                    "Bucketize (discretize)",
-                    "Rename",
-                    "Ask LLM",
-                ],
-                key=f"cont_action_{col}",
-            )
+            action = action_radio_for_column(col = col, coltype = vartype)
 
             if action == "Rename":
                 new_name = st.text_input("Rename variable", value=col)
@@ -369,99 +361,120 @@ You can select a new variable to transform.""")
                     st.rerun()
 
             elif action == "Ask LLM":
+                # Initialize session state for LLM results if not exists
+                if 'llm_new_series' not in st.session_state:
+                    st.session_state.llm_new_series = None
+                if 'llm_code' not in st.session_state:
+                    st.session_state.llm_code = None
+
                 llm_request = st.text_area(
                     label="""**Describe your request for the LLM**.  
 IMPORTANT: Avoid using transformations that may cause data or label leakage""",
-                value = "Change the column from string to numeric by removing the $ dollar sign and keeping its numbers only",
-                key=f"llm_req_{col}"
+                    value="Change the column from string to numeric by removing the $ dollar sign and keeping its numbers only",
+                    key=f"llm_req_{col}"
                 )
+
+                # Submit button for LLM request
                 if st.button("Submit", key=f"llm_submit_{col}"):
-                    df_name = "df"
-                    code, _ = ask_llm(df_name, col, llm_request)
-                    if code:
-                        st.markdown("**LLM-proposed code:**")
-                        st.code(code, language="python")
-                        # Execute in a restricted local namespace
-                        local_ns = {"df": df, "np": np, "pd": pd, "re": re}
-                        try:
-                            exec(code, {}, local_ns)
-                            new_series = local_ns.get("lm_transformed_column", None)
-                        except Exception as e:
-                            st.error(f"Execution failed: {e}")
-                            new_series = None
+                    with st.spinner("Generating code..."):
+                        code = ask_llm("df", col, llm_request)
+                        if code:
+                            st.session_state.llm_code = code
+                            st.markdown("**LLM-proposed code:**")
+                            st.code(code, language="python")
+                            
+                            # Execute in isolated namespace
+                            local_ns = {"df": df.copy(), "np": np, "pd": pd, "re": re}
+                            try:
+                                exec(code, {}, local_ns)
+                                # Cerca la variabile di output
+                                new_series = local_ns.get("lm_transformed_column")
+                                
+                                if new_series is None:
+                                    st.warning("⚠️ The generated code did not create 'lm_transformed_column'.")
+                                elif len(new_series) != len(df):
+                                    st.error("❌ The transformed series length does not match the DataFrame.")
+                                else:
+                                    st.session_state.llm_new_series = new_series
+                                    st.success("✅ Transformation completed successfully!")
+                            except Exception as e:
+                                st.error(f"❌ Code execution failed: {str(e)}")
 
-                        if new_series is None:
-                            st.warning("The generated code did not create 'lm_transformed_column'.")
-                        elif len(new_series) != len(df):
-                            st.error("The LLM output length does not match the DataFrame.")
-                        else:
-                            st.session_state.llm_new_series = new_series
-
+                # Show results and options if we have a transformed series
                 if st.session_state.llm_new_series is not None:
-                    new_series = st.session_state.llm_new_series
-                    # Get unique values from both series
-                    unique_pairs = pd.DataFrame({
-                        f"Original ({col})": df[col],
-                        "LLM suggestion": new_series
-                    }).drop_duplicates()
+                    st.markdown("#### Preview of Transformations")
                     
-                    # Sample min(15, number of unique pairs) rows
-                    comparison_df = unique_pairs.sample(
-                        n=min(10, len(unique_pairs)), 
+                    # Create comparison DataFrame
+                    comparison_df = pd.DataFrame({
+                        f"Original ({col})": df[col],
+                        "LLM suggestion": st.session_state.llm_new_series
+                    }).drop_duplicates().sample(
+                        n=min(10, len(df)), 
                         random_state=42
-                    )
-                    st.write("Sample of unique value transformations:")
-                    st.dataframe(comparison_df.reset_index(drop=True), use_container_width=True)
-
-                    choice = st.selectbox(
-                        "Choose what to do with the LLM-transformed column:",
-                        [
-                            "Keep Both (adds new column)",
-                            "Accept changes (replaces original column)",
-                            "Reject changes",
-                        ],
-                        key=f"llm_action_choice_{col}",
-                    )
-
-                    if choice == "Keep Both (adds new column)":
-                        new_col_name = st.text_input(
-                            "Name for new column", value=f"{col}_llm", key=f"llm_new_col_name_{col}"
+                    ).reset_index(drop=True)
+                    
+                    # Show comparison
+                    st.dataframe(comparison_df, use_container_width=True)
+                    
+                    # Actions for the transformed data
+                    action_col1, action_col2 = st.columns([2, 1])
+                    with action_col1:
+                        choice = st.radio(
+                            "Choose what to do with the transformed data:",
+                            ["Keep Both (new column)", "Replace Original", "Reject Changes"],
+                            key=f"llm_action_choice_{col}",
+                            horizontal=True
                         )
-                        if st.button("Confirm Keep", key=f"llm_keep_{col}"):
-                            if new_col_name in df.columns:
-                                st.error("Column already exists.")
-                            else:
-                                df[new_col_name] = new_series
-                                st.success(f"New column '{new_col_name}' added.")
-                                st.session_state.last_action = f"Added LLM output as '{new_col_name}'"
+
+                    with action_col2:
+                        if choice == "Keep Both (new column)":
+                            new_col_name = st.text_input(
+                                "New column name",
+                                value=f"{col}_transformed",
+                                key=f"llm_new_col_name_{col}"
+                            )
+                            if st.button("✅ Confirm", key=f"llm_confirm_{col}"):
+                                if new_col_name in df.columns:
+                                    st.error("Column name already exists!")
+                                else:
+                                    df[new_col_name] = st.session_state.llm_new_series
+                                    st.session_state.last_action = f"Added transformed data as '{new_col_name}'"
+                                    st.session_state.llm_new_series = None
+                                    st.session_state.llm_code = None
+                                    variable = ""
+                                    st.rerun()
+                                    
+                        elif choice == "Replace Original":
+                            if st.button("✅ Confirm Replace", key=f"llm_replace_{col}"):
+                                df[col] = st.session_state.llm_new_series
+                                st.session_state.last_action = f"Replaced '{col}' with transformed data"
                                 st.session_state.llm_new_series = None
+                                st.session_state.llm_code = None
+                                variable = ""
+                                st.rerun()
+                                
+                        elif choice == "Reject Changes":
+                            if st.button("❌ Reject", key=f"llm_reject_{col}"):
+                                st.session_state.llm_new_series = None
+                                st.session_state.llm_code = None
+                                st.session_state.last_action = "Rejected LLM transformation"
                                 variable = ""
                                 st.rerun()
 
-                    elif choice == "Accept changes (replaces original column)":
-                        if st.button("Confirm Replace", key=f"llm_replace_{col}"):
-                            df[col] = new_series
-                            st.success(f"Column '{col}' replaced with LLM output.")
-                            st.session_state.last_action = f"Column '{col}' replaced with LLM output"
-                            st.session_state.llm_new_series = None
-                            variable = ""
-                            st.rerun()
-
-                    elif choice == "Reject changes":
-                        if st.button("Confirm Reject", key=f"llm_reject_{col}"):
-                            st.info("LLM suggestion discarded.")
-                            st.session_state.last_action = "Rejected LLM suggestion"
-                            st.session_state.llm_new_series = None
-                            variable = ""
-                            st.rerun()
-
         # -------------------- Categorical / Binary --------------------
         elif vartype in ["Categorical", "Binary"]:
-            action = st.radio(
-                "Choose encoding/cleaning",
-                ["None", "Impute Missing Values", "Label Encoding", "One-hot Encoding"],
-                key=f"cat_action_{col}",
-            )
+            action = action_radio_for_column(col = col, coltype = vartype)
+            
+            if action == "Rename":
+                new_name = st.text_input("Rename variable", value=col)
+                if new_name != col and st.button("Rename"):
+                    if new_name in df.columns:
+                        st.error("A column with this name already exists.")
+                    else:
+                        df.rename(columns={col: new_name}, inplace=True)
+                        st.session_state.last_action = f"Renamed {col} to {new_name}"
+                        variable = ""
+                        st.rerun()
 
             if action == "Impute Missing Values":
                 st.info("Imputation will use the modal class value.")
