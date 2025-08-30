@@ -107,9 +107,7 @@ if st.session_state.confirmed:
     if st.session_state.RF_params_changed is True:
         st.warning("⚠️ Parameters have changed. Please re-train the model.")
 
-    # ------------------------ Step 2: Training (Compute) ------------------------
-    st.write(f"train:{st.session_state.RF_to_train} test:{st.session_state.RF_to_test}")
-    
+    # ------------------------ Step 2: Training (Compute) ------------------------    
     if st.session_state.RF_to_train is True and st.session_state.RF_to_test is False:
         with st.spinner("Training model…"):
             a_clean = dataframe.dropna()
@@ -207,7 +205,9 @@ if st.session_state.confirmed:
                     
     # ------------------------ Step 2: Training (Display CV metrics) ------------------------
     if st.session_state.RF_trained is True:
-        st.markdown("### 🎯 Best Parameters")
+        st.markdown("### 🏋 Training Set Operations")
+        st.markdown("")
+        st.markdown("#### 🎯 Best Parameters")
         best_model = st.session_state.RF_best_model
         col1, col2, col3 = st.columns(3)
         for idx, (param, value) in enumerate(best_model.best_params_.items()):
@@ -215,7 +215,7 @@ if st.session_state.confirmed:
             col.metric(f"{param}", f"{value}")
 
         # CHANGED: show cross-validation summary (k-fold) instead of a single validation-split metric
-        st.markdown("### 🧪 Cross-Validation Performance")
+        st.markdown("#### 🧪 Cross-Validation Performance")
         cvsum = st.session_state.get("RF_cv_summary", {})
         if cvsum:
             k = cvsum.get("k", "?")
@@ -280,7 +280,8 @@ if st.session_state.confirmed:
         if st.session_state.RF_tested is True:
             match st.session_state.problem_type:
                 case 'classification_binary':  # Binary Classification metrics and plots 
-                    st.markdown("### 📊 Key Metrics")
+                    st.markdown("")
+                    st.markdown("#### 📊 Key Metrics")
                     col1, col2, col3, col4 = st.columns(4)
                     col1.metric("Accuracy", f"{st.session_state.RF_test_metrics['accuracy']:.3f}")
                     col2.metric("Precision", f"{st.session_state.RF_test_metrics['precision']:.3f}")
@@ -288,7 +289,8 @@ if st.session_state.confirmed:
                     col4.metric("F1-score", f"{st.session_state.RF_test_metrics['f1']:.3f}")
 
                     # Confusion matrix
-                    st.markdown("### 🧩 Confusion Matrix")
+                    st.markdown("")
+                    st.markdown("#### 🧩 Confusion Matrix")
                     fig, ax = plt.subplots(figsize=(4.2, 3.6))
                     sns.heatmap(
                         st.session_state.RF_test_metrics["confusion_matrix"],
@@ -300,7 +302,8 @@ if st.session_state.confirmed:
                     show_centered_matplotlib(fig)
 
                     # ROC and PR curves
-                    st.markdown("### 📈 AUC Analysis")
+                    st.markdown("")
+                    st.markdown("#### 📈 AUC Analysis")
                     y_test = st.session_state.RF_y_test
                     y_proba = st.session_state.RF_y_proba
                     curve_type = st.radio(
@@ -336,15 +339,17 @@ if st.session_state.confirmed:
                         show_centered_matplotlib(fig)
 
                 case 'classification_multi':  # Multiclass classification
-                    st.markdown("### 📊 Key Metrics")
+                    st.markdown("")
+                    st.markdown("#### 📊 Key Metrics")
                     col1, col2, col3 = st.columns(3)
                     col1.metric("Accuracy", f"{st.session_state.RF_test_metrics['accuracy']:.3f}")
                     col2.metric("Macro F1", f"{st.session_state.RF_test_metrics['macro_f1']:.3f}")
                     col3.metric("Weighted F1", f"{st.session_state.RF_test_metrics['weighted_f1']:.3f}")
 
                     # Confusion matrix
-                    st.markdown("### 🧩 Confusion Matrix")
-                    fig, ax = plt.subplots(figsize=(8, 6))
+                    st.markdown("")
+                    st.markdown("#### 🧩 Confusion Matrix")
+                    fig, ax = plt.subplots(figsize=(10, 8))
                     sns.heatmap(
                         st.session_state.RF_test_metrics["confusion_matrix"],
                         annot=True, fmt='d', cmap='Blues', ax=ax
@@ -355,14 +360,30 @@ if st.session_state.confirmed:
                     show_centered_matplotlib(fig)
 
                     # Classification Report
-                    st.markdown("### 📑 Classification Report")
-                    y_test = st.session_state.RF_y_test
-                    y_pred = st.session_state.RF_y_pred
-                    report = classification_report(y_test, y_pred)
-                    st.text(report)
+                    st.markdown("")
+                    st.markdown("#### 📑 Classification Report")
+                    report_dict = classification_report(y_test, y_pred, output_dict=True)
+                    # Convert the dictionary to a DataFrame
+                    report_df = pd.DataFrame(report_dict).transpose()
+                    # The final row contains metrics for accuracy, macro avg, and weighted avg.
+                    # The `support` column is not applicable to these rows, so we can clean it up.
+                    report_df['support'] = report_df['support'].fillna('')
+                    styled_df = report_df.style.format(
+                        formatter={
+                            'precision': '{:.2f}',
+                            'recall': '{:.2f}',
+                            'f1-score': '{:.2f}',
+                            'macro avg': '{:.2f}',
+                            'weighted avg': '{:.2f}',
+                            'support': '{:.2f}',
+                        }
+                    ).background_gradient(cmap='Blues', subset=['precision', 'recall', 'f1-score'])
+                    # Display the formatted DataFrame
+                    st.dataframe(styled_df, use_container_width=True)
 
                 case 'regression':  # Regression
-                    st.markdown("### 📊 Regression Metrics")
+                    st.markdown("")
+                    st.markdown("#### 📊 Regression Metrics")
                     col1, col2, col3, col4 = st.columns(4)
                     col1.metric("MSE", f"{st.session_state.RF_test_metrics['mse']:.3f}")
                     col2.metric("RMSE", f"{st.session_state.RF_test_metrics['rmse']:.3f}")
@@ -373,7 +394,8 @@ if st.session_state.confirmed:
                     y_pred = st.session_state.RF_y_pred
                     
                     # Actual vs Predicted Plot
-                    st.markdown("### 📈 Actual vs Predicted Values")
+                    st.markdown("")
+                    st.markdown("#### 📈 Actual vs Predicted Values")
                     fig, ax = plt.subplots(figsize=(4.2, 3.6))
                     ax.scatter(y_test, y_pred, alpha=0.5)
                     ax.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--', lw=2)
@@ -383,7 +405,8 @@ if st.session_state.confirmed:
                     show_centered_matplotlib(fig)
 
                     # Residuals Plot
-                    st.markdown("### 📊 Residuals Plot")
+                    st.markdown("")
+                    st.markdown("#### 📊 Residuals Plot")
                     residuals = y_test - y_pred
                     fig, ax = plt.subplots(figsize=(4.2, 3.6))
                     ax.scatter(y_pred, residuals, alpha=0.5)

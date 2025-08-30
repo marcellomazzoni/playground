@@ -45,6 +45,7 @@ for key, default in [
     ("last_action_general", None),
     ("llm_output", None),
     ("llm_new_series", None),
+    ("var_to_change", None)
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -67,21 +68,6 @@ if st.session_state["dataframe"] is None:
                 st.session_state["uploaded_file"] = uploaded_file
                 st.session_state["dataframe"] = dataframe
                 st.success("File successfully uploaded!")
-    # else:
-    #     csv_files = [f for f in os.listdir(".") if f.endswith(".csv")]
-    #     if csv_files:
-    #         selected_file = st.selectbox("Select CSV file", csv_files)
-    #         if selected_file:
-    #             try:
-    #                 dataframe = pd.read_csv(selected_file)
-    #             except Exception as e:
-    #                 st.error(f"Failed to read CSV: {e}")
-    #             else:
-    #                 st.session_state["dataframe"] = dataframe
-    #                 st.success(f"Loaded: {selected_file}")
-    #     else:
-    #         st.warning("No CSV files found in the current directory.")
-
 
 # ----------------------------------------------------------------------------
 # Main UI once we have a DataFrame
@@ -97,18 +83,6 @@ if st.session_state["dataframe"] is not None:
     # Type detection – recomputed on each run (cheap and consistent)
     autotype_dict = {col: get_autotype(df[col]) for col in df.columns}
     dtype_dict = {col: str(df[col].dtype) for col in df.columns}
-    
-    # SUGGESTION: global drop-duplicates utility
-    with st.expander("Drop duplicates"):
-        st.info("Duplicate rows of the entire dataset will deleted. You can choose a subset of columns to look for duplicates")
-        subset_cols = st.multiselect("Subset of columns", [""] + list(df.columns))
-        keep_first = st.checkbox("Keep first occurrence", value=True)
-        if st.button("Apply", key="apply_drop_duplicates"):
-            before = len(df)
-            df.drop_duplicates(subset=subset_cols if subset_cols else None, keep="first" if keep_first else False, inplace=True)
-            after = len(df)
-            st.session_state.last_action = f"Dropped {before - after} duplicate rows"
-            st.rerun()
 
     # Column families for summary blocks
     numeric_cols = [
@@ -215,7 +189,7 @@ You can select a new, general, transformation.""")
 
     # Batch drop logic
     with st.expander("Drop variables"):
-        drop_vars = st.multiselect("Select variables to drop", options=[""] + list(df.columns))
+        drop_vars = st.multiselect("Select variables to drop", options= list(df.columns))
         if st.button("Drop"):
             if drop_vars:
                 df.drop(columns=drop_vars, inplace=True, errors="ignore")
@@ -224,22 +198,31 @@ You can select a new, general, transformation.""")
                 st.rerun()
             else:
                 st.warning("No variables selected for dropping.")
+        
+    with st.expander("Drop duplicates"):
+        subset_cols = st.multiselect("Subset of columns", list(df.columns))
+        keep_first = st.checkbox("Keep first occurrence", value=True)
+        if st.button("Apply", key="apply_drop_duplicates"):
+            before = len(df)
+            df.drop_duplicates(subset=subset_cols if subset_cols else None, keep="first" if keep_first else False, inplace=True)
+            after = len(df)
+            st.session_state.last_action_general = f"Dropped {before - after} duplicate rows"
+            st.rerun()
 
     # Lowercase column names (safe rename)
     with st.expander("Lowercase variables names"):
-        to_lowercase = st.multiselect("Select variables to lowercase", options=[""] + list(df.columns))
+        to_lowercase = st.multiselect("Select variables to lowercase", options= list(df.columns))
         if st.button("Apply", key="apply_lowercase_colnames"):
             if not to_lowercase:
-                st.info("Select at least one column to rename.")
+                st.info("Select at least one column to lowercase.")
             else:
                 rename_dict = {c: c.lower() for c in to_lowercase}
-                # SUGGESTION: prevent collisions if two columns only differ by case
                 new_names = list(df.columns)
                 proposed = {old: new for old, new in rename_dict.items()}
                 # Collision check
                 collision = any(new in set(df.columns) - {old} for old, new in proposed.items())
                 if collision:
-                    st.error("Lowercasing would create duplicate column names. Rename manually first.")
+                    st.error("Lowercasing would create duplicate column names. Rename or drop manually first.")
                 else:
                     df.rename(columns=proposed, inplace=True)
                     st.session_state.last_action_general = f"Lowercased: {list(proposed.values())}"
@@ -248,15 +231,15 @@ You can select a new, general, transformation.""")
     # ------------------------ Single-variable actions ------------------------
     st.subheader("Single-variable actions:")
     
-    if st.session_state.last_action:
-        st.success(f"""{st.session_state.last_action}. 
-You can select a new variable to transform.""")
+    if st.session_state.last_action is not None:
+        st.success(f"""{st.session_state.last_action}""")
         st.session_state.last_action = None
-
-    variable_choices = [""] + [f"{row.Variable} ({row.AutoType})" for _, row in summary_df.iterrows()]
-    variable = st.selectbox("Select variable to transform", variable_choices, index=0)
-
-    if variable != "":
+        st.session_state.var_to_change = None
+    
+    variable_choices = [""]+[f"{row.Variable} ({row.AutoType})" for _, row in summary_df.iterrows()]
+    variable = st.selectbox("Select variable to transform", variable_choices, index=0, key="var_to_change")
+    
+    if  variable:
         col = variable.split(" (")[0]
         vartype = autotype_dict[col]
         dtype = dtype_dict[col]
@@ -286,7 +269,7 @@ You can select a new variable to transform.""")
                     else:
                         df.rename(columns={col: new_name}, inplace=True)
                         st.session_state.last_action = f"Renamed {col} to {new_name}"
-                        variable = ""
+                        # st.session_state.var_to_change = ""
                         st.rerun()
 
             if action == "Manage outliers":
@@ -299,7 +282,7 @@ You can select a new variable to transform.""")
                         upper = q3 + 1.5 * iqr
                         df[col] = ser.clip(lower, upper)
                         st.session_state.last_action = f"{col} outliers capped to 1.5*IQR"
-                        variable = ""
+                        # st.session_state.var_to_change = ""
                         st.rerun()
                 else:
                     lower_upper = st.slider(
@@ -314,39 +297,93 @@ You can select a new variable to transform.""")
                         upper = ser.quantile(lower_upper[1]/100)
                         df[col] = ser.clip(lower, upper)
                         st.session_state.last_action = f"{col} outliers capped at percentiles {lower}-{upper}"
-                        variable = ""
                         st.rerun()
 
             elif action == "Manage missing values":
                 imp_method = st.selectbox("Impute using", ["Mean", "Median", "KNN"])
-                if st.button("Apply", key=f"apply_missing_{col}"):
-                    if imp_method == "Mean":
+                    
+                if imp_method == "Mean":
+                    if st.button("Apply", key=f"apply_missing_mean_{col}"):
                         df[col] = ser.fillna(ser.mean())
                         st.session_state.last_action = f"Mean imputation on {col}"
-                        variable = ""
                         st.rerun()
-                        
-                    elif imp_method == "Median":
+                    
+                elif imp_method == "Median":
+                    if st.button("Apply", key=f"apply_missing_median_{col}"):
                         df[col] = ser.fillna(ser.median())
                         st.session_state.last_action = f"Median imputation on {col}"
-                        variable = ""
                         st.rerun()
-                        
-                    elif imp_method == "KNN":
-                        k = st.slider("K (neighbors)", 1, 30, 8)
-                        # Use all numeric columns as features for imputation
-                        numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
-                        if not numeric_cols:
-                            st.error("No numeric features available for KNN imputation")
-                        else:
-                            imputer = KNNImputer(n_neighbors=k)
-                            # Fit on all numeric columns
-                            temp = imputer.fit_transform(df[numeric_cols])
-                            # Update only the target column with the last column of results
-                            df[col] = temp[col]
-                            st.session_state.last_action = f"KNN imputation on {col} using {len(numeric_cols)} numeric features"
-                            variable = ""
-                            st.rerun()
+                    
+                elif imp_method == "KNN":
+                    # Hyperparameter: neighbors
+                    k = st.slider("K (neighbors)", min_value=1, max_value=30, value=8, key=f"knn_k_{col}")
+
+                    # Candidates are numeric columns excluding the target
+                    candidate_features = [c for c in numeric_cols if c != col]
+                    if len(candidate_features) < 1:
+                        st.error("At least one other numeric feature is required for KNN imputation.")
+                    else:
+                        # If the target has no missing values, warn (still allow running if user insists)
+                        if not df[col].isna().any():
+                            st.info(f"Column '{col}' does not contain missing values; KNN imputation may be unnecessary.")
+
+                        # Let user choose which features to use; defaults to all candidates
+                        features = st.multiselect(
+                            "Select features to use for imputation",
+                            options=candidate_features,         
+                            default=candidate_features,
+                            help="These features are used to compute distances for nearest neighbors.",
+                            key=f"knn_feats_{col}",
+                        )
+
+                        if st.button("Apply", key=f"apply_knn_{col}"):
+                            if not features:
+                                st.error("Please select at least one feature (other than the target) for KNN imputation.")
+                            else:
+                                # Build the matrix for imputation: features + target (target last)
+                                to_impute = df[features + [col]].copy()
+                                # Replace ±inf -> NaN so the imputer won't fail
+                                to_impute = to_impute.replace([np.inf, -np.inf], np.nan)
+                                # Ensure there are enough rows with at least one non-NaN feature
+                                rows_with_some_feature = (~to_impute[features].isna().all(axis=1)).sum()
+                                if rows_with_some_feature < 2:
+                                    st.error("Not enough usable rows for KNN (need at least 2 rows with some non-missing feature values).")
+                                    st.stop()
+    
+                                X = to_impute[features].astype(float)
+                                
+                                mu = X.mean(axis=0, skipna=True)
+                                sigma = X.std(axis=0, ddof=0, skipna=True)
+                                sigma_safe = sigma.replace(0.0, 1.0) # Protect against zero std to avoid division by zero
+                                X_scaled = (X - mu) / sigma_safe  # NaNs preserved
+                                impute_matrix = pd.concat([X_scaled, to_impute[[col]]], axis=1)# Combine scaled features with the (unscaled) target as last column
+                                k_effective = min(k, max(1, rows_with_some_feature - 1)) # Cap k to available neighbor rows
+
+                                # Cap k to a safe value relative to available neighbor rows
+                                k_effective = min(k, max(1, rows_with_some_feature - 1))
+
+                                # Optional: if **all** target values are NaN, we cannot impute meaningfully
+                                if to_impute[col].isna().all():
+                                    st.error(f"Column '{col}' has all values missing. KNN cannot impute the entire column without any observed targets.")
+                                    st.stop()
+
+                                # Fit/transform with KNNImputer
+                                imputer = KNNImputer(n_neighbors=k_effective)
+                                imputed = imputer.fit_transform(to_impute)  # numpy array
+                                target_imputed = imputed[:, len(features)]  # target is last column
+
+                                # Safe assignment back: update ONLY where target was missing
+                                missing_mask = to_impute[col].isna().values
+                                if missing_mask.any():
+                                    df.loc[to_impute.index[missing_mask], col] = target_imputed[missing_mask]
+
+                                # UX message + optional UI reset and rerun
+                                n_filled = int(missing_mask.sum())
+                                st.session_state.last_action = (
+                                    f"KNN imputation on '{col}': filled {n_filled} missing value(s) "
+                                    f"using {len(features)} feature(s), k={k_effective}."
+                                )
+                                st.rerun()
 
             elif action == "Bucketize (discretize)":
                 buck_type = st.selectbox("Bucketize by", ["Quantiles", "Equal width"])
@@ -357,7 +394,6 @@ You can select a new variable to transform.""")
                     else:
                         df[col] = pd.cut(ser, n_buckets, labels=False, duplicates="drop")
                     st.session_state.last_action = f"Bucketing applied to {col}, now in {n_buckets} groups"
-                    variable = ""
                     st.rerun()
 
             elif action == "Ask LLM":
@@ -441,7 +477,6 @@ IMPORTANT: Avoid using transformations that may cause data or label leakage""",
                                     st.session_state.last_action = f"Added transformed data as '{new_col_name}'"
                                     st.session_state.llm_new_series = None
                                     st.session_state.llm_code = None
-                                    variable = ""
                                     st.rerun()
                                     
                         elif choice == "Replace Original":
@@ -450,7 +485,6 @@ IMPORTANT: Avoid using transformations that may cause data or label leakage""",
                                 st.session_state.last_action = f"Replaced '{col}' with transformed data"
                                 st.session_state.llm_new_series = None
                                 st.session_state.llm_code = None
-                                variable = ""
                                 st.rerun()
                                 
                         elif choice == "Reject Changes":
@@ -458,7 +492,6 @@ IMPORTANT: Avoid using transformations that may cause data or label leakage""",
                                 st.session_state.llm_new_series = None
                                 st.session_state.llm_code = None
                                 st.session_state.last_action = "Rejected LLM transformation"
-                                variable = ""
                                 st.rerun()
 
         # -------------------- Categorical / Binary --------------------
@@ -473,7 +506,6 @@ IMPORTANT: Avoid using transformations that may cause data or label leakage""",
                     else:
                         df.rename(columns={col: new_name}, inplace=True)
                         st.session_state.last_action = f"Renamed {col} to {new_name}"
-                        variable = ""
                         st.rerun()
 
             if action == "Impute Missing Values":
@@ -482,7 +514,6 @@ IMPORTANT: Avoid using transformations that may cause data or label leakage""",
                     mode = ser.mode().iloc[0] if not ser.mode().empty else None
                     df[col] = ser.fillna(mode)
                     st.session_state.last_action = f"Mode imputation applied to {col}"
-                    variable = ""
                     st.rerun()
 
             elif action == "Label Encoding":
@@ -491,7 +522,6 @@ IMPORTANT: Avoid using transformations that may cause data or label leakage""",
                     mapping = {v: i for i, v in enumerate(uniques)}
                     df[col] = ser.map(mapping)
                     st.session_state.last_action = f"Label encoding applied to {col}"
-                    variable = ""
                     st.rerun()
 
             elif action == "One-hot Encoding":
@@ -525,7 +555,6 @@ IMPORTANT: Avoid using transformations that may cause data or label leakage""",
 
                 df[col] = ser.map(_to_bin)
                 st.session_state.last_action = f"Boolean conversion applied to {col}"
-                variable = ""
                 st.rerun()
 
         # -------------------- Descriptive --------------------
@@ -549,9 +578,8 @@ IMPORTANT: Avoid using transformations that may cause data or label leakage""",
                     st.session_state.last_action = f"Datetime formatted/parsed for {col}"
                 except Exception as e:
                     st.error(f"Could not convert: {e}")
-                variable = ""
                 st.rerun()
-
+                
     # ----------------------------------------------------------------------------
     # Target selection (numeric continuous only for now)
     # ----------------------------------------------------------------------------

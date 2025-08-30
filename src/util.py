@@ -73,13 +73,18 @@ def action_radio_for_column(col: str,
                 "Bucketize (discretize)",
                 "Rename"]
             
-        case "Categorical" | "Binary":
+        case "Categorical":
             base_options = [
                 "Impute Missing Values", 
                 "Label Encoding", 
                 "One-hot Encoding",
                 "Rename"]
-        
+            
+        case "Binary":
+            base_options = [
+                "Impute Missing Values", 
+                "Rename"]
+            
         case _:
             base_options["None"]
         
