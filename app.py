@@ -15,14 +15,19 @@ if st.session_state.get("confirmed") and ptype:
         pages["Models"] = [
             st.Page("models/KNN.py",            title="KNN (Classifier)",  icon=":material/science:"),
             st.Page("models/Random Forest.py",  title="Random Forest (Clf)", icon=":material/forest:"),
-            st.Page("models/SVM.py",            title="SVM (SVC)",         icon=":material/bolt:")
+            st.Page("models/SVM.py",            title="SVM (SVC)",         icon=":material/bolt:"),
+            st.Page("models/Logistic Regression.py", title="Logistic Regression", icon=":material/linear_scale:"),
+            st.Page("models/Naive Bayes.py",    title="Naive Bayes",       icon=":material/inbox:"),
+            st.Page("models/XGBoost.py",        title="XGBoost",           icon=":material/rocket_launch:"),
         ]
         
     elif ptype == "regression":
         pages["Models"] = [
-#            st.Page("models/KNN.py",            title="KNN (Regressor)",   icon=":material/science:"),
+            st.Page("models/KNN.py",            title="KNN (Regressor)",   icon=":material/science:"),
             st.Page("models/Random Forest.py",  title="Random Forest (Reg)", icon=":material/forest:"),
-#            st.Page("models/SVM.py",            title="SVM (SVR)",         icon=":material/bolt:")
+            st.Page("models/SVM.py",            title="SVM (SVR)",         icon=":material/bolt:"),
+            st.Page("models/Linear Models.py",  title="Linear Models",     icon=":material/straighten:"),
+            st.Page("models/XGBoost.py",        title="XGBoost",           icon=":material/rocket_launch:"),
         ]
     
     elif ptype == "forecasting":
