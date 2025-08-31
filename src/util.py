@@ -1,4 +1,5 @@
 import streamlit as st 
+import pandas as pd
 
 # ========================= LLM availability + dynamic radio =========================
 # Paste this somewhere near your other utils (before you render the radios).
@@ -131,3 +132,19 @@ def show_centered_matplotlib(fig, width_ratio=2.4):
     left_ , mid, right_ = st.columns([1, width_ratio, 1])
     with mid:
         st.pyplot(fig, use_container_width=True)
+        
+        
+def debug_cross_val(grid_search):
+    st.markdown("---")
+    # Get the results and put them into a DataFrame
+    results = pd.DataFrame(grid_search.cv_results_)
+
+    # Select and display the relevant columns, sorted by mean test score
+    ranked_results = results[[
+    'rank_test_score',
+    'mean_test_score',
+    'std_test_score',
+    'params'
+    ]].sort_values(by='rank_test_score')
+    st.dataframe(ranked_results)
+    st.markdown("---")

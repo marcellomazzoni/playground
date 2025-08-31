@@ -70,6 +70,8 @@ if st.session_state.confirmed:
     learning_rate = st.sidebar.multiselect('learning_rate', [0.01, 0.1, 0.2], default=[0.1], accept_new_options=True, max_selections=3)
     subsample = st.sidebar.multiselect('subsample', [0.6, 0.8, 1.0], default=[1.0], accept_new_options=True, max_selections=3)
     colsample_bytree = st.sidebar.multiselect('colsample_bytree', [0.6, 0.8, 1.0], default=[1.0], accept_new_options=True, max_selections=3)
+    st.sidebar.markdown('---')
+    seed = st.sidebar.number_input('Random State (seed)', min_value=0, max_value=2_147_483_647, value=42, step=1)
 
     # Store last-used hyperparameters to detect changes
     XGB_current_params = {
@@ -80,6 +82,7 @@ if st.session_state.confirmed:
         'learning_rate': learning_rate,
         'subsample': subsample,
         'colsample_bytree': colsample_bytree,
+        'random_state': seed,
     }
 
     # TRAIN trigger
@@ -116,7 +119,7 @@ if st.session_state.confirmed:
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y,
                 test_size=st.session_state.XGB_last_params['test_size'],
-                random_state=42
+                random_state=st.session_state.XGB_last_params['random_state']
             )
 
             scaler = StandardScaler()
@@ -127,7 +130,7 @@ if st.session_state.confirmed:
                 le = LabelEncoder()
                 y_train_encoded = le.fit_transform(y_train)
 
-                xgb = XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='mlogloss')
+                xgb = XGBClassifier(random_state=st.session_state.XGB_last_params['random_state'], use_label_encoder=False, eval_metric='mlogloss')
                 param_grid = {
                     'n_estimators': st.session_state.XGB_last_params['n_estimators'],
                     'max_depth': st.session_state.XGB_last_params['max_depth'],
@@ -155,7 +158,7 @@ if st.session_state.confirmed:
                 }
 
             elif st.session_state["problem_type"] == "regression":
-                xgb = XGBRegressor(random_state=42)
+                xgb = XGBRegressor(random_state=st.session_state.XGB_last_params['random_state'])
                 param_grid = {
                     'n_estimators': st.session_state.XGB_last_params['n_estimators'],
                     'max_depth': st.session_state.XGB_last_params['max_depth'],

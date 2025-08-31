@@ -65,7 +65,9 @@ if st.session_state.confirmed:
     st.sidebar.markdown('---')
     n_neighbors = st.sidebar.multiselect('n_neighbors', [3, 5, 7, 9, 11], default=[3, 5], accept_new_options=True, max_selections=5)
     weights = st.sidebar.multiselect('weights', ['uniform', 'distance'], default=['uniform'])
-    metric = st.sidebar.multiselect('metric', ['minkowski', 'euclidean', 'manhattan'], default=['minkowski'])
+    metric = st.sidebar.multiselect('distance metric', ['cosine', 'chebyshev', 'euclidean', 'manhattan'], default=['euclidean'])
+    st.sidebar.markdown('---')
+    seed = st.sidebar.number_input('Random State (seed)', min_value=0, max_value=2_147_483_647, value=42, step=1)
 
     # Store last-used hyperparameters to detect changes
     KNN_current_params = {
@@ -74,6 +76,7 @@ if st.session_state.confirmed:
         'n_neighbors': n_neighbors,
         'weights': weights,
         'metric': metric,
+        'random_state': seed,
     }
 
     # TRAIN trigger
@@ -110,7 +113,7 @@ if st.session_state.confirmed:
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y,
                 test_size=st.session_state.KNN_last_params['test_size'],
-                random_state=42
+                random_state=st.session_state.KNN_last_params['random_state']
             )
 
             scaler = StandardScaler()

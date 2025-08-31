@@ -15,6 +15,7 @@ from sklearn.metrics import (
     accuracy_score, classification_report,
     mean_squared_error, mean_absolute_error, r2_score
 )
+from src.util import debug_cross_val
 
 # ------------------------ Step 1: Parameter Selection ------------------------
 st.title("Support Vector Machine (SVM) Model Training & Testing")
@@ -68,6 +69,8 @@ if st.session_state.confirmed:
     kernel = st.sidebar.multiselect('kernel', ['linear', 'poly', 'rbf', 'sigmoid'], default=['rbf'])
     degree = st.sidebar.multiselect('degree', [2, 3, 4], default=[3], accept_new_options=True, max_selections=3)
     gamma = st.sidebar.multiselect('gamma', ['scale', 'auto'], default=['scale'])
+    st.sidebar.markdown('---')
+    seed = st.sidebar.number_input('Random State (seed)', min_value=0, max_value=2_147_483_647, value=42, step=1)
 
     # Store last-used hyperparameters to detect changes
     SVM_current_params = {
@@ -77,6 +80,7 @@ if st.session_state.confirmed:
         'kernel': kernel,
         'degree': degree,
         'gamma': gamma,
+        'random_state': seed,
     }
 
     # TRAIN trigger
@@ -113,7 +117,7 @@ if st.session_state.confirmed:
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y,
                 test_size=st.session_state.SVM_last_params['test_size'],
-                random_state=42
+                random_state=st.session_state.SVM_last_params['random_state']
             )
 
             scaler = StandardScaler()
@@ -121,13 +125,42 @@ if st.session_state.confirmed:
             X_test_scaled = scaler.transform(X_test)
 
             if st.session_state["problem_type"] in ["classification_multi", "classification_binary"]:
-                svm = SVC(probability=True, random_state=42)
-                param_grid = {
-                    'C': st.session_state.SVM_last_params['C'],
-                    'kernel': st.session_state.SVM_last_params['kernel'],
-                    'degree': st.session_state.SVM_last_params['degree'],
-                    'gamma': st.session_state.SVM_last_params['gamma']
-                }
+                svm = SVC(probability=True, random_state=st.session_state.SVM_last_params['random_state'])
+                # param_grid = {
+                #     'C': st.session_state.SVM_last_params['C'],
+                #     'kernel': st.session_state.SVM_last_params['kernel'],
+                #     'degree': st.session_state.SVM_last_params['degree'],
+                #     'gamma': st.session_state.SVM_last_params['gamma']
+                # }
+                param_grid = []
+
+                # Get the kernels the user selected
+                selected_kernels = st.session_state.SVM_last_params['kernel']
+                # Dynamically build the param_grid based on selected kernels
+                if 'rbf' in selected_kernels:
+                    param_grid.append({
+                        'kernel': ['rbf'],
+                        'C': st.session_state.SVM_last_params['C'],
+                        'gamma': st.session_state.SVM_last_params['gamma']
+                    })
+                if 'poly' in selected_kernels:
+                    param_grid.append({
+                        'kernel': ['poly'],
+                        'C': st.session_state.SVM_last_params['C'],
+                        'degree': st.session_state.SVM_last_params['degree'],
+                        'gamma': st.session_state.SVM_last_params['gamma']
+                    })
+                if 'linear' in selected_kernels:
+                    param_grid.append({
+                        'kernel': ['linear'],
+                        'C': st.session_state.SVM_last_params['C']
+                    })
+                if 'sigmoid' in selected_kernels:
+                    param_grid.append({
+                        'kernel': ['sigmoid'],
+                        'C': st.session_state.SVM_last_params['C'],
+                        'gamma': st.session_state.SVM_last_params['gamma']
+                    })
 
                 grid_search = GridSearchCV(
                     svm,
@@ -137,6 +170,8 @@ if st.session_state.confirmed:
                     return_train_score=False
                 )
                 grid_search.fit(X_train_scaled, y_train)
+                
+                # debug_cross_val(grid_search)
 
                 best_idx = grid_search.best_index_
                 cv_mean = grid_search.cv_results_['mean_test_score'][best_idx]
@@ -149,12 +184,34 @@ if st.session_state.confirmed:
 
             elif st.session_state["problem_type"] == "regression":
                 svm = SVR()
-                param_grid = {
-                    'C': st.session_state.SVM_last_params['C'],
-                    'kernel': st.session_state.SVM_last_params['kernel'],
-                    'degree': st.session_state.SVM_last_params['degree'],
-                    'gamma': st.session_state.SVM_last_params['gamma']
-                }
+                param_grid = []
+                # Get the kernels the user selected
+                selected_kernels = st.session_state.SVM_last_params['kernel']
+                # Dynamically build the param_grid based on selected kernels
+                if 'rbf' in selected_kernels:
+                    param_grid.append({
+                        'kernel': ['rbf'],
+                        'C': st.session_state.SVM_last_params['C'],
+                        'gamma': st.session_state.SVM_last_params['gamma']
+                    })
+                if 'poly' in selected_kernels:
+                    param_grid.append({
+                        'kernel': ['poly'],
+                        'C': st.session_state.SVM_last_params['C'],
+                        'degree': st.session_state.SVM_last_params['degree'],
+                        'gamma': st.session_state.SVM_last_params['gamma']
+                    })
+                if 'linear' in selected_kernels:
+                    param_grid.append({
+                        'kernel': ['linear'],
+                        'C': st.session_state.SVM_last_params['C']
+                    })
+                if 'sigmoid' in selected_kernels:
+                    param_grid.append({
+                        'kernel': ['sigmoid'],
+                        'C': st.session_state.SVM_last_params['C'],
+                        'gamma': st.session_state.SVM_last_params['gamma']
+                    })
 
                 grid_search = GridSearchCV(
                     svm,
@@ -165,6 +222,7 @@ if st.session_state.confirmed:
                     return_train_score=False
                 )
                 grid_search.fit(X_train_scaled, y_train)
+                # debug_cross_val(grid_search)
 
                 best_idx = grid_search.best_index_
                 cv = grid_search.cv_results_
