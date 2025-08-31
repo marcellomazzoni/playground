@@ -14,6 +14,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     accuracy_score, classification_report
 )
+from src .util import debug_cross_val
 
 # ------------------------ Step 1: Parameter Selection ------------------------
 st.title("Logistic Regression Model Training & Testing")
@@ -65,6 +66,8 @@ if st.session_state.confirmed:
     C = st.sidebar.multiselect('C', [0.1, 1, 10, 100], default=[1], accept_new_options=True, max_selections=4)
     penalty = st.sidebar.multiselect('penalty', ['l1', 'l2', 'elasticnet', 'none'], default=['l2'])
     solver = st.sidebar.multiselect('solver', ['newton-cg', 'lbfgs', 'liblinear', 'sag', 'saga'], default=['lbfgs'])
+    st.sidebar.markdown('---')
+    seed = st.sidebar.number_input('Random State (seed)', min_value=0, max_value=2_147_483_647, value=42, step=1)
 
     # Store last-used hyperparameters to detect changes
     LR_current_params = {
@@ -73,6 +76,7 @@ if st.session_state.confirmed:
         'C': C,
         'penalty': penalty,
         'solver': solver,
+        'random_state': seed,
     }
 
     # TRAIN trigger
@@ -109,19 +113,122 @@ if st.session_state.confirmed:
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y,
                 test_size=st.session_state.LR_last_params['test_size'],
-                random_state=42
+                random_state=st.session_state.LR_last_params['random_state']
             )
 
             scaler = StandardScaler()
             X_train_scaled = scaler.fit_transform(X_train)
             X_test_scaled = scaler.transform(X_test)
 
-            lr = LogisticRegression(random_state=42)
-            param_grid = {
-                'C': st.session_state.LR_last_params['C'],
-                'penalty': st.session_state.LR_last_params['penalty'],
-                'solver': st.session_state.LR_last_params['solver']
-            }
+            lr = LogisticRegression(random_state=st.session_state.LR_last_params['random_state'])
+            # param_grid = {
+            #     'C': st.session_state.LR_last_params['C'],
+            #     'penalty': st.session_state.LR_last_params['penalty'],
+            #     'solver': st.session_state.LR_last_params['solver']
+            # }
+            # Get the selected parameters
+            selected_solvers = st.session_state.LR_last_params['solver']
+            selected_penalties = st.session_state.LR_last_params['penalty']
+            
+            converted_penalties = []
+            for p in selected_penalties:
+                if p == 'none':
+                    converted_penalties.append(None)
+                else:
+                    converted_penalties.append(p)
+                    
+            C_values = st.session_state.LR_last_params['C']
+
+            # Initialize an empty list for the parameter grid
+            param_grid = []
+
+            # Build the grid dynamically based on compatible solver-penalty pairs
+            if 'liblinear' in selected_solvers:
+                compatible_penalties = [p for p in converted_penalties if p in ['l1', 'l2']]
+                if compatible_penalties:
+                    param_grid.append({
+                        'solver': ['liblinear'],
+                        'penalty': compatible_penalties,
+                        'C': C_values
+                    })
+
+            if 'lbfgs' in selected_solvers:
+                # Separate 'none' penalty to avoid redundant C values
+                regularized_penalties = [p for p in converted_penalties if p in ['l2']]
+                none_penalty = [p for p in converted_penalties if p is None]
+
+                if regularized_penalties:
+                    param_grid.append({
+                        'solver': ['lbfgs'],
+                        'penalty': regularized_penalties,
+                        'C': C_values
+                    })
+                if none_penalty:
+                    param_grid.append({
+                        'solver': ['lbfgs'],
+                        'penalty': none_penalty,
+                        'C': [1.0]  # Use a single arbitrary value for C
+                    })
+
+            if 'newton-cg' in selected_solvers:
+                regularized_penalties = [p for p in converted_penalties if p in ['l2']]
+                none_penalty = [p for p in converted_penalties if p is None]
+                
+                if regularized_penalties:
+                    param_grid.append({
+                        'solver': ['newton-cg'],
+                        'penalty': regularized_penalties,
+                        'C': C_values
+                    })
+                if none_penalty:
+                    param_grid.append({
+                        'solver': ['newton-cg'],
+                        'penalty': none_penalty,
+                        'C': [1.0]
+                    })
+
+            if 'sag' in selected_solvers:
+                regularized_penalties = [p for p in converted_penalties if p in ['l2']]
+                none_penalty = [p for p in converted_penalties if p is None]
+
+                if regularized_penalties:
+                    param_grid.append({
+                        'solver': ['sag'],
+                        'penalty': regularized_penalties,
+                        'C': C_values
+                    })
+                if none_penalty:
+                    param_grid.append({
+                        'solver': ['sag'],
+                        'penalty': none_penalty,
+                        'C': [1.0]
+                    })
+
+            if 'saga' in selected_solvers:
+                regularized_penalties = [p for p in converted_penalties if p in ['l1', 'l2']]
+                elasticnet_penalty = [p for p in converted_penalties if p == 'elasticnet']
+                none_penalty = [p for p in converted_penalties if p is None]
+
+                if regularized_penalties:
+                    param_grid.append({
+                        'solver': ['saga'],
+                        'penalty': regularized_penalties,
+                        'C': C_values
+                    })
+                if elasticnet_penalty:
+                    param_grid.append({
+                        'solver': ['saga'],
+                        'penalty': elasticnet_penalty,
+                        'l1_ratio': [0.1, 0.5, 0.9],
+                        'C': C_values
+                    })
+                if none_penalty:
+                    param_grid.append({
+                        'solver': ['saga'],
+                        'penalty': none_penalty,
+                        'C': [1.0]
+                    })
+
 
             grid_search = GridSearchCV(
                 lr,
@@ -133,6 +240,7 @@ if st.session_state.confirmed:
             )
             try:
                 grid_search.fit(X_train_scaled, y_train)
+                debug_cross_val(grid_search)
 
                 best_idx = grid_search.best_index_
                 cv_mean = grid_search.cv_results_['mean_test_score'][best_idx]

@@ -65,6 +65,9 @@ if st.session_state.confirmed:
     alpha = None
     if model_type in ["Lasso", "Ridge"]:
         alpha = st.sidebar.slider('Alpha (Regularization Strength)', min_value=0.01, max_value=10.0, value=1.0, step=0.01)
+        
+    st.sidebar.markdown('---')
+    seed = st.sidebar.number_input('Random State (seed)', min_value=0, max_value=2_147_483_647, value=42, step=1)
 
     # Store last-used hyperparameters to detect changes
     LM_current_params = {
@@ -72,6 +75,7 @@ if st.session_state.confirmed:
         'model_type': model_type,
         'degree': degree,
         'alpha': alpha,
+        'random_state': seed,
     }
 
     # TRAIN trigger
@@ -106,7 +110,7 @@ if st.session_state.confirmed:
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y,
                 test_size=st.session_state.LM_last_params['test_size'],
-                random_state=42
+                random_state=st.session_state.LM_last_params['random_state']
             )
 
             scaler = StandardScaler()

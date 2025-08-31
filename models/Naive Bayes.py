@@ -61,12 +61,15 @@ if st.session_state.confirmed:
     cv_folds = st.sidebar.slider('CV Folds', min_value=2, max_value=10, value=5)
     st.sidebar.markdown('---')
     var_smoothing = st.sidebar.multiselect('var_smoothing', [1e-9, 1e-8, 1e-7, 1e-6, 1e-5], default=[1e-9], accept_new_options=True, max_selections=5)
+    st.sidebar.markdown('---')
+    seed = st.sidebar.number_input('Random State (seed)', min_value=0, max_value=2_147_483_647, value=42, step=1)
 
     # Store last-used hyperparameters to detect changes
     NB_current_params = {
         'test_size': test_size,
         'cv_folds': cv_folds,
         'var_smoothing': var_smoothing,
+        'random_state': seed,
     }
 
     # TRAIN trigger
@@ -103,7 +106,7 @@ if st.session_state.confirmed:
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y,
                 test_size=st.session_state.NB_last_params['test_size'],
-                random_state=42
+                random_state=st.session_state.NB_last_params['random_state']
             )
 
             scaler = StandardScaler()
