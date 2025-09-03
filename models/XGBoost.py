@@ -131,13 +131,13 @@ if st.session_state.confirmed:
                 y_train_encoded = le.fit_transform(y_train)
 
                 xgb = XGBClassifier(random_state=st.session_state.XGB_last_params['random_state'], use_label_encoder=False, eval_metric='mlogloss')
-                param_grid = {
+                param_grid = [{
                     'n_estimators': st.session_state.XGB_last_params['n_estimators'],
                     'max_depth': st.session_state.XGB_last_params['max_depth'],
                     'learning_rate': st.session_state.XGB_last_params['learning_rate'],
                     'subsample': st.session_state.XGB_last_params['subsample'],
                     'colsample_bytree': st.session_state.XGB_last_params['colsample_bytree'],
-                }
+                }]
 
                 grid_search = GridSearchCV(
                     xgb,
@@ -159,13 +159,13 @@ if st.session_state.confirmed:
 
             elif st.session_state["problem_type"] == "regression":
                 xgb = XGBRegressor(random_state=st.session_state.XGB_last_params['random_state'])
-                param_grid = {
+                param_grid = [{
                     'n_estimators': st.session_state.XGB_last_params['n_estimators'],
                     'max_depth': st.session_state.XGB_last_params['max_depth'],
                     'learning_rate': st.session_state.XGB_last_params['learning_rate'],
                     'subsample': st.session_state.XGB_last_params['subsample'],
                     'colsample_bytree': st.session_state.XGB_last_params['colsample_bytree'],
-                }
+                }]
 
                 grid_search = GridSearchCV(
                     xgb,
@@ -198,7 +198,7 @@ if st.session_state.confirmed:
 
             st.success("✅ Training Completed")
 
-            st.session_state.XGB_best_model = grid_search
+            st.session_state.XGB_cv_results = grid_search
             st.session_state.XGB_X_test_scaled = X_test_scaled
             st.session_state.XGB_y_test = y_test
             st.session_state.XGB_trained = True
@@ -207,9 +207,9 @@ if st.session_state.confirmed:
         st.markdown("### 🏋 Training Set Operations")
         st.markdown("")
         st.markdown("#### 🎯 Best Parameters")
-        best_model = st.session_state.XGB_best_model
+        cv_results = st.session_state.XGB_cv_results
         col1, col2, col3 = st.columns(3)
-        for idx, (param, value) in enumerate(best_model.best_params_.items()):
+        for idx, (param, value) in enumerate(cv_results.best_params_.items()):
             col = [col1, col2, col3][idx % 3]
             col.metric(f"{param}", f"{value}")
 
@@ -234,14 +234,14 @@ if st.session_state.confirmed:
         if st.session_state.XGB_to_test is True:
             with st.spinner("Testing model…"):
                 st.markdown("### 🔍 Test Set Evaluation")
-                best_model = st.session_state.XGB_best_model
+                cv_results = st.session_state.XGB_cv_results
                 y_test = st.session_state.XGB_y_test
-                y_pred = best_model.predict(st.session_state.XGB_X_test_scaled)
+                y_pred = cv_results.predict(st.session_state.XGB_X_test_scaled)
                 st.session_state.XGB_y_pred = y_pred
 
                 match st.session_state.problem_type:
                     case 'classification_binary':
-                        st.session_state.XGB_y_proba = best_model.predict_proba(st.session_state.XGB_X_test_scaled)[:, 1]
+                        st.session_state.XGB_y_proba = cv_results.predict_proba(st.session_state.XGB_X_test_scaled)[:, 1]
                         st.session_state.XGB_test_metrics = {
                             "accuracy": float(accuracy_score(y_test, y_pred)),
                             "precision": float(precision_score(y_test, y_pred, zero_division=0)),
@@ -251,7 +251,7 @@ if st.session_state.confirmed:
                         }
 
                     case 'classification_multi':
-                        st.session_state.XGB_y_proba = best_model.predict_proba(st.session_state.XGB_X_test_scaled)
+                        st.session_state.XGB_y_proba = cv_results.predict_proba(st.session_state.XGB_X_test_scaled)
                         st.session_state.XGB_test_metrics = {
                             "accuracy": float(accuracy_score(y_test, y_pred)),
                             "macro_f1": float(f1_score(y_test, y_pred, average='macro')),

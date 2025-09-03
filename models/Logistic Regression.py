@@ -14,7 +14,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     accuracy_score, classification_report
 )
-from src .util import debug_cross_val
+from src .util import debug_cross_val, are_params_empty, generate_model_formula_latex, get_numeric_x_and_y_from_df
 
 # ------------------------ Step 1: Parameter Selection ------------------------
 st.title("Logistic Regression Model Training & Testing")
@@ -48,6 +48,10 @@ if st.session_state.confirmed:
     dataframe = st.session_state['dataframe']
     target = st.session_state['target']
     first_time = st.session_state.LR_first_entered
+    
+    X, y = get_numeric_x_and_y_from_df(dataframe, target)
+    a = generate_model_formula_latex(y, X , model_type = 'logistic_regression', model=None)
+    st.latex(a)
 
     if first_time:
         st.session_state.LR_last_params = {
@@ -106,9 +110,7 @@ if st.session_state.confirmed:
     # ------------------------ Step 2: Training (Compute) ------------------------
     if st.session_state.LR_to_train is True and st.session_state.LR_to_test is False:
         with st.spinner("Training model…"):
-            a_clean = dataframe.dropna()
-            X = a_clean.select_dtypes(include=['float64', 'int64']).drop([target], axis=1, errors='ignore')
-            y = a_clean[target]
+            X, y = get_numeric_x_and_y_from_df(dataframe, target)
 
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y,
@@ -121,15 +123,17 @@ if st.session_state.confirmed:
             X_test_scaled = scaler.transform(X_test)
 
             lr = LogisticRegression(random_state=st.session_state.LR_last_params['random_state'])
-            # param_grid = {
-            #     'C': st.session_state.LR_last_params['C'],
-            #     'penalty': st.session_state.LR_last_params['penalty'],
-            #     'solver': st.session_state.LR_last_params['solver']
-            # }
+
             # Get the selected parameters
             selected_solvers = st.session_state.LR_last_params['solver']
             selected_penalties = st.session_state.LR_last_params['penalty']
             
+            if selected_solvers == []:
+                st.write("The solver variable is an empty list.")
+
+            if not selected_solvers:
+                st.write("The solver variable is an empty list (truthy check).")
+
             converted_penalties = []
             for p in selected_penalties:
                 if p == 'none':
@@ -141,7 +145,6 @@ if st.session_state.confirmed:
 
             # Initialize an empty list for the parameter grid
             param_grid = []
-
             # Build the grid dynamically based on compatible solver-penalty pairs
             if 'liblinear' in selected_solvers:
                 compatible_penalties = [p for p in converted_penalties if p in ['l1', 'l2']]
@@ -228,8 +231,10 @@ if st.session_state.confirmed:
                         'penalty': none_penalty,
                         'C': [1.0]
                     })
-
-
+                    
+            if are_params_empty(param_grid, necessary_params=['C'], not_necessary_params=None):
+                st.stop()
+            
             grid_search = GridSearchCV(
                 lr,
                 param_grid,
@@ -253,7 +258,7 @@ if st.session_state.confirmed:
 
                 st.success("✅ Training Completed")
 
-                st.session_state.LR_best_model = grid_search
+                st.session_state.LR_cv_results = grid_search
                 st.session_state.LR_X_test_scaled = X_test_scaled
                 st.session_state.LR_y_test = y_test
                 st.session_state.LR_trained = True
@@ -268,12 +273,12 @@ if st.session_state.confirmed:
         st.markdown("### 🏋 Training Set Operations")
         st.markdown("")
         st.markdown("#### 🎯 Best Parameters")
-        best_model = st.session_state.LR_best_model
+        cv_results = st.session_state.LR_cv_results 
         col1, col2, col3 = st.columns(3)
-        for idx, (param, value) in enumerate(best_model.best_params_.items()):
+        for idx, (param, value) in enumerate(cv_results.best_params_.items()):
             col = [col1, col2, col3][idx % 3]
             col.metric(f"{param}", f"{value}")
-
+        st.markdown("")
         st.markdown("#### 🧪 Cross-Validation Performance")
         cvsum = st.session_state.get("LR_cv_summary", {})
         if cvsum:
@@ -287,6 +292,9 @@ if st.session_state.confirmed:
                 cols[i % len(cols)].metric(label, f"{mean_val:.3f}")
 
         st.session_state.LR_to_train = False
+        st.markdown("")
+        st.markdown("### 🧩 Best model estimated")
+        st.latex(generate_model_formula_latex(y, X, model_type = 'logistic_regression', model = grid_search.best_estimator_))
 
         # ------------------------ Step 3: Testing (Trigger + Compute) ------------------------
         st.markdown("---")
@@ -296,14 +304,14 @@ if st.session_state.confirmed:
         if st.session_state.LR_to_test is True:
             with st.spinner("Testing model…"):
                 st.markdown("### 🔍 Test Set Evaluation")
-                best_model = st.session_state.LR_best_model
+                cv_results = st.session_state.LR_cv_results
                 y_test = st.session_state.LR_y_test
-                y_pred = best_model.predict(st.session_state.LR_X_test_scaled)
+                y_pred = cv_results.predict(st.session_state.LR_X_test_scaled)
                 st.session_state.LR_y_pred = y_pred
 
                 match st.session_state.problem_type:
                     case 'classification_binary':
-                        st.session_state.LR_y_proba = best_model.predict_proba(st.session_state.LR_X_test_scaled)[:, 1]
+                        st.session_state.LR_y_proba = cv_results.predict_proba(st.session_state.LR_X_test_scaled)[:, 1]
                         st.session_state.LR_test_metrics = {
                             "accuracy": float(accuracy_score(y_test, y_pred)),
                             "precision": float(precision_score(y_test, y_pred, zero_division=0)),
@@ -313,7 +321,7 @@ if st.session_state.confirmed:
                         }
 
                     case 'classification_multi':
-                        st.session_state.LR_y_proba = best_model.predict_proba(st.session_state.LR_X_test_scaled)
+                        st.session_state.LR_y_proba = cv_results.predict_proba(st.session_state.LR_X_test_scaled)
                         st.session_state.LR_test_metrics = {
                             "accuracy": float(accuracy_score(y_test, y_pred)),
                             "macro_f1": float(f1_score(y_test, y_pred, average='macro')),

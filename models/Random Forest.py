@@ -130,11 +130,11 @@ if st.session_state.confirmed:
             # CLASSIFICATION
             if st.session_state["problem_type"] in ["classification_multi", "classification_binary"]:
                 rf = RandomForestClassifier(random_state=st.session_state.RF_last_params['random_state'])
-                param_grid = {
+                param_grid = [{
                     'n_estimators': st.session_state.RF_last_params['n_estimators'],
                     'max_depth': st.session_state.RF_last_params['max_depth'],
                     'min_samples_split': st.session_state.RF_last_params['min_samples_split']
-                }
+                }]
                 
                 grid_search = GridSearchCV(
                     rf,
@@ -158,11 +158,11 @@ if st.session_state.confirmed:
             # REGRESSION
             elif st.session_state["problem_type"] == "regression":
                 rf = RandomForestRegressor(random_state=st.session_state.RF_last_params['random_state'])
-                param_grid = {
+                param_grid = [{
                     'n_estimators': st.session_state.RF_last_params['n_estimators'],
                     'max_depth': st.session_state.RF_last_params['max_depth'],
                     'min_samples_split': st.session_state.RF_last_params['min_samples_split']
-                }
+                }]
                 
                 grid_search = GridSearchCV(
                     rf,
@@ -198,7 +198,7 @@ if st.session_state.confirmed:
             st.success("✅ Training Completed")
 
             # Persist artifacts for downstream use
-            st.session_state.RF_best_model = grid_search
+            st.session_state.RF_cv_results = grid_search
             st.session_state.RF_X_test_scaled = X_test_scaled
             st.session_state.RF_y_test = y_test    
             st.session_state.RF_trained = True
@@ -208,9 +208,9 @@ if st.session_state.confirmed:
         st.markdown("### 🏋 Training Set Operations")
         st.markdown("")
         st.markdown("#### 🎯 Best Parameters")
-        best_model = st.session_state.RF_best_model
+        cv_results = st.session_state.RF_cv_results
         col1, col2, col3 = st.columns(3)
-        for idx, (param, value) in enumerate(best_model.best_params_.items()):
+        for idx, (param, value) in enumerate(cv_results.best_params_.items()):
             col = [col1, col2, col3][idx % 3]
             col.metric(f"{param}", f"{value}")
 
@@ -240,14 +240,14 @@ if st.session_state.confirmed:
             with st.spinner("Testing model…"):
                 st.markdown("### 🔍 Test Set Evaluation")
                 # Recover saved objects from session_state (persistence across reruns)
-                best_model = st.session_state.RF_best_model
+                cv_results = st.session_state.RF_cv_results
                 y_test = st.session_state.RF_y_test
-                y_pred = best_model.predict(st.session_state.RF_X_test_scaled)
+                y_pred = cv_results.predict(st.session_state.RF_X_test_scaled)
                 st.session_state.RF_y_pred = y_pred  # keep for later displays
             
                 match st.session_state.problem_type:
                     case 'classification_binary':  # Binary Classification metrics and plots 
-                        st.session_state.RF_y_proba = best_model.predict_proba(st.session_state.RF_X_test_scaled)[:, 1]
+                        st.session_state.RF_y_proba = cv_results.predict_proba(st.session_state.RF_X_test_scaled)[:, 1]
                         st.session_state.RF_test_metrics = {
                             "accuracy": float(accuracy_score(y_test, y_pred)),
                             "precision": float(precision_score(y_test, y_pred, zero_division=0)),
@@ -257,7 +257,7 @@ if st.session_state.confirmed:
                         }
                     
                     case 'classification_multi':  # Multiclass classification
-                        st.session_state.RF_y_proba = best_model.predict_proba(st.session_state.RF_X_test_scaled)
+                        st.session_state.RF_y_proba = cv_results.predict_proba(st.session_state.RF_X_test_scaled)
                         st.session_state.RF_test_metrics = {
                             "accuracy": float(accuracy_score(y_test, y_pred)),
                             "macro_f1": float(f1_score(y_test, y_pred, average='macro')),

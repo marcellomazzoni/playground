@@ -15,7 +15,7 @@ from sklearn.metrics import (
     accuracy_score, classification_report,
     mean_squared_error, mean_absolute_error, r2_score
 )
-from src.util import debug_cross_val
+from src.util import debug_cross_val, are_params_empty
 
 # ------------------------ Step 1: Parameter Selection ------------------------
 st.title("Support Vector Machine (SVM) Model Training & Testing")
@@ -67,8 +67,20 @@ if st.session_state.confirmed:
     st.sidebar.markdown('---')
     C = st.sidebar.multiselect('C', [0.1, 1, 10, 100], default=[1, 10], accept_new_options=True, max_selections=4)
     kernel = st.sidebar.multiselect('kernel', ['linear', 'poly', 'rbf', 'sigmoid'], default=['rbf'])
-    degree = st.sidebar.multiselect('degree', [2, 3, 4], default=[3], accept_new_options=True, max_selections=3)
-    gamma = st.sidebar.multiselect('gamma', ['scale', 'auto'], default=['scale'])
+    # Conditional rendering for degree
+    if 'poly' in kernel:
+        degree = st.sidebar.multiselect('degree', [2, 3, 4], default=[3], accept_new_options=True, max_selections=3)
+    else:
+        # Define a default value for degree if the widget isn't shown
+        degree = [3]
+
+    # Conditional rendering for gamma
+    if any(k in kernel for k in ['rbf', 'poly', 'sigmoid']):
+        gamma = st.sidebar.multiselect('gamma', ['scale', 'auto'], default=['scale'])
+    else:
+        # Define a default value for gamma if the widget isn't shown
+        gamma = ['scale']
+
     st.sidebar.markdown('---')
     seed = st.sidebar.number_input('Random State (seed)', min_value=0, max_value=2_147_483_647, value=42, step=1)
 
@@ -126,17 +138,11 @@ if st.session_state.confirmed:
 
             if st.session_state["problem_type"] in ["classification_multi", "classification_binary"]:
                 svm = SVC(probability=True, random_state=st.session_state.SVM_last_params['random_state'])
-                # param_grid = {
-                #     'C': st.session_state.SVM_last_params['C'],
-                #     'kernel': st.session_state.SVM_last_params['kernel'],
-                #     'degree': st.session_state.SVM_last_params['degree'],
-                #     'gamma': st.session_state.SVM_last_params['gamma']
-                # }
                 param_grid = []
-
                 # Get the kernels the user selected
                 selected_kernels = st.session_state.SVM_last_params['kernel']
                 # Dynamically build the param_grid based on selected kernels
+                
                 if 'rbf' in selected_kernels:
                     param_grid.append({
                         'kernel': ['rbf'],
@@ -162,6 +168,9 @@ if st.session_state.confirmed:
                         'gamma': st.session_state.SVM_last_params['gamma']
                     })
 
+                if are_params_empty(param_grid, necessary_params = ['C','kernel'], not_necessary_params = ['gamma','degree']):
+                    st.stop()
+
                 grid_search = GridSearchCV(
                     svm,
                     param_grid,
@@ -171,7 +180,7 @@ if st.session_state.confirmed:
                 )
                 grid_search.fit(X_train_scaled, y_train)
                 
-                # debug_cross_val(grid_search)
+                debug_cross_val(grid_search)
 
                 best_idx = grid_search.best_index_
                 cv_mean = grid_search.cv_results_['mean_test_score'][best_idx]
@@ -212,6 +221,9 @@ if st.session_state.confirmed:
                         'C': st.session_state.SVM_last_params['C'],
                         'gamma': st.session_state.SVM_last_params['gamma']
                     })
+                    
+                if are_params_empty(param_grid, necessary_params = ['C','kernel'], not_necessary_params = ['gamma','degree']):
+                    st.stop()
 
                 grid_search = GridSearchCV(
                     svm,
@@ -222,7 +234,7 @@ if st.session_state.confirmed:
                     return_train_score=False
                 )
                 grid_search.fit(X_train_scaled, y_train)
-                # debug_cross_val(grid_search)
+                debug_cross_val(grid_search)
 
                 best_idx = grid_search.best_index_
                 cv = grid_search.cv_results_
@@ -245,7 +257,7 @@ if st.session_state.confirmed:
 
             st.success("✅ Training Completed")
 
-            st.session_state.SVM_best_model = grid_search
+            st.session_state.SVM_cv_results = grid_search
             st.session_state.SVM_X_test_scaled = X_test_scaled
             st.session_state.SVM_y_test = y_test
             st.session_state.SVM_trained = True
@@ -254,9 +266,9 @@ if st.session_state.confirmed:
         st.markdown("### 🏋 Training Set Operations")
         st.markdown("")
         st.markdown("#### 🎯 Best Parameters")
-        best_model = st.session_state.SVM_best_model
+        cv_results = st.session_state.SVM_cv_results
         col1, col2, col3 = st.columns(3)
-        for idx, (param, value) in enumerate(best_model.best_params_.items()):
+        for idx, (param, value) in enumerate(cv_results.best_params_.items()):
             col = [col1, col2, col3][idx % 3]
             col.metric(f"{param}", f"{value}")
 
@@ -281,14 +293,14 @@ if st.session_state.confirmed:
         if st.session_state.SVM_to_test is True:
             with st.spinner("Testing model…"):
                 st.markdown("### 🔍 Test Set Evaluation")
-                best_model = st.session_state.SVM_best_model
+                cv_results = st.session_state.SVM_cv_results
                 y_test = st.session_state.SVM_y_test
-                y_pred = best_model.predict(st.session_state.SVM_X_test_scaled)
+                y_pred = cv_results.predict(st.session_state.SVM_X_test_scaled)
                 st.session_state.SVM_y_pred = y_pred
 
                 match st.session_state.problem_type:
                     case 'classification_binary':
-                        st.session_state.SVM_y_proba = best_model.predict_proba(st.session_state.SVM_X_test_scaled)[:, 1]
+                        st.session_state.SVM_y_proba = cv_results.predict_proba(st.session_state.SVM_X_test_scaled)[:, 1]
                         st.session_state.SVM_test_metrics = {
                             "accuracy": float(accuracy_score(y_test, y_pred)),
                             "precision": float(precision_score(y_test, y_pred, zero_division=0)),
@@ -298,7 +310,7 @@ if st.session_state.confirmed:
                         }
 
                     case 'classification_multi':
-                        st.session_state.SVM_y_proba = best_model.predict_proba(st.session_state.SVM_X_test_scaled)
+                        st.session_state.SVM_y_proba = cv_results.predict_proba(st.session_state.SVM_X_test_scaled)
                         st.session_state.SVM_test_metrics = {
                             "accuracy": float(accuracy_score(y_test, y_pred)),
                             "macro_f1": float(f1_score(y_test, y_pred, average='macro')),

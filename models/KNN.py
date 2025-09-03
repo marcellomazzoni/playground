@@ -15,6 +15,7 @@ from sklearn.metrics import (
     accuracy_score, classification_report,
     mean_squared_error, mean_absolute_error, r2_score
 )
+from src .util import debug_cross_val, are_params_empty
 
 # ------------------------ Step 1: Parameter Selection ------------------------
 st.title("K-Nearest Neighbors (KNN) Model Training & Testing")
@@ -122,12 +123,15 @@ if st.session_state.confirmed:
 
             if st.session_state["problem_type"] in ["classification_multi", "classification_binary"]:
                 knn = KNeighborsClassifier()
-                param_grid = {
+                param_grid = [{
                     'n_neighbors': st.session_state.KNN_last_params['n_neighbors'],
                     'weights': st.session_state.KNN_last_params['weights'],
                     'metric': st.session_state.KNN_last_params['metric']
-                }
-
+                }]
+                
+                if are_params_empty(param_grid, necessary_params = ['n_neighbors','weights','metric']):
+                    st.stop()
+                    
                 grid_search = GridSearchCV(
                     knn,
                     param_grid,
@@ -136,6 +140,7 @@ if st.session_state.confirmed:
                     return_train_score=False
                 )
                 grid_search.fit(X_train_scaled, y_train)
+                debug_cross_val(grid_search)
 
                 best_idx = grid_search.best_index_
                 cv_mean = grid_search.cv_results_['mean_test_score'][best_idx]
@@ -148,11 +153,14 @@ if st.session_state.confirmed:
 
             elif st.session_state["problem_type"] == "regression":
                 knn = KNeighborsRegressor()
-                param_grid = {
+                param_grid = [{
                     'n_neighbors': st.session_state.KNN_last_params['n_neighbors'],
                     'weights': st.session_state.KNN_last_params['weights'],
                     'metric': st.session_state.KNN_last_params['metric']
-                }
+                }]
+                
+                if are_params_empty(param_grid, necessary_params = ['n_neighbors','weights','metric']):
+                    st.stop()
 
                 grid_search = GridSearchCV(
                     knn,
@@ -163,6 +171,7 @@ if st.session_state.confirmed:
                     return_train_score=False
                 )
                 grid_search.fit(X_train_scaled, y_train)
+                debug_cross_val(grid_search)
 
                 best_idx = grid_search.best_index_
                 cv = grid_search.cv_results_
@@ -185,7 +194,7 @@ if st.session_state.confirmed:
 
             st.success("✅ Training Completed")
 
-            st.session_state.KNN_best_model = grid_search
+            st.session_state.KNN_cv_results = grid_search
             st.session_state.KNN_X_test_scaled = X_test_scaled
             st.session_state.KNN_y_test = y_test
             st.session_state.KNN_trained = True
@@ -194,9 +203,9 @@ if st.session_state.confirmed:
         st.markdown("### 🏋 Training Set Operations")
         st.markdown("")
         st.markdown("#### 🎯 Best Parameters")
-        best_model = st.session_state.KNN_best_model
+        cv_results = st.session_state.KNN_cv_results
         col1, col2, col3 = st.columns(3)
-        for idx, (param, value) in enumerate(best_model.best_params_.items()):
+        for idx, (param, value) in enumerate(cv_results.best_params_.items()):
             col = [col1, col2, col3][idx % 3]
             col.metric(f"{param}", f"{value}")
 
@@ -221,14 +230,14 @@ if st.session_state.confirmed:
         if st.session_state.KNN_to_test is True:
             with st.spinner("Testing model…"):
                 st.markdown("### 🔍 Test Set Evaluation")
-                best_model = st.session_state.KNN_best_model
+                cv_results = st.session_state.KNN_cv_results
                 y_test = st.session_state.KNN_y_test
-                y_pred = best_model.predict(st.session_state.KNN_X_test_scaled)
+                y_pred = cv_results.predict(st.session_state.KNN_X_test_scaled)
                 st.session_state.KNN_y_pred = y_pred
 
                 match st.session_state.problem_type:
                     case 'classification_binary':
-                        st.session_state.KNN_y_proba = best_model.predict_proba(st.session_state.KNN_X_test_scaled)[:, 1]
+                        st.session_state.KNN_y_proba = cv_results.predict_proba(st.session_state.KNN_X_test_scaled)[:, 1]
                         st.session_state.KNN_test_metrics = {
                             "accuracy": float(accuracy_score(y_test, y_pred)),
                             "precision": float(precision_score(y_test, y_pred, zero_division=0)),
@@ -238,7 +247,7 @@ if st.session_state.confirmed:
                         }
 
                     case 'classification_multi':
-                        st.session_state.KNN_y_proba = best_model.predict_proba(st.session_state.KNN_X_test_scaled)
+                        st.session_state.KNN_y_proba = cv_results.predict_proba(st.session_state.KNN_X_test_scaled)
                         st.session_state.KNN_test_metrics = {
                             "accuracy": float(accuracy_score(y_test, y_pred)),
                             "macro_f1": float(f1_score(y_test, y_pred, average='macro')),
