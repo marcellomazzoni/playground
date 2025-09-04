@@ -126,11 +126,6 @@ def action_radio_for_column(col: str,
     return action
 
 # ========================= Usage example =========================
-# for col in some_numeric_columns:
-#     action = action_radio_for_column(col, llm_model="qwen2.5-coder:3b", llm_url="http://localhost:11434")
-#     if action == "Ask LLM":
-#         # call your ask_llm(...) helper
-#         pass
 
 
 def show_centered_matplotlib(fig, width_ratio=2.4):

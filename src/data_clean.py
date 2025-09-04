@@ -1,6 +1,9 @@
 import numpy as np
 import pandas as pd
+from google import genai
+from google.genai import types
 from dateutil.parser import parse as dateparse
+from dotenv import load_dotenv
 import streamlit as st
 import re 
 import time
@@ -8,8 +11,36 @@ import time
 # ----------------------------------------------------------------------------
 # Helper: LLM code generator for column-wise transformations
 # ----------------------------------------------------------------------------
+security_prompt = f"""
+Your goal is to ensure that the request that the user inputs is in line with the task of cleaning a column of a dataframe.
 
-def ask_llm(df_name, column_name, request):
+RETURN '0' if:
+    - The REQUEST is not related in any way to data processing or cleaning a specific column or dataframe.
+    - The REQUEST creates code that is harmful to local storage or computer.
+    - The REQUEST contains pre-written code of any language.
+    
+RETURN '1' otherwise
+"""
+
+coder_data_cleaner_system_prompt = """
+# Role
+You are a master in writing python code, with the goal of performing data cleaning
+
+# Instructions
+You create a python snippet, which is your only output.
+Your snippet will address the requested column of the dataframe, only performing what is asked.
+DO NOT CHANGE the original dataframe and column of interest, apply what requested on a newly generated series.
+IMPORTANT: The output series MUST be named exactly "lm_transformed_column"
+You can only use pandas, numpy, math and re.
+Never wrap the output in a markdown format.
+
+## Output format
+You only output python code, without imports (they are already present).
+Your output will be executed with exec(your_answer) in a restricted environment, so code accordingly.
+If the user request is to generate more than one new column, simply reply with ```python'raise Exception("You may only generate one column")'```
+"""
+
+def  ask_llm_data_clean(df_name, column_name, request, connectivity = 'local'):
     """Call a local LLM endpoint (e.g., Ollama) to generate a Pandas snippet
     that produces a Series named `lm_transformed_column`.
 
@@ -19,81 +50,72 @@ def ask_llm(df_name, column_name, request):
 
     Returns: the raw code string (for auditability) and the produced Series.
     """
-    import requests  # lazy import so the app still runs if requests is missing
-
-    url = "http://localhost:11434/api/generate"
-
-    instruction_prompt = """
-    # Role
-    You are a master in writing python code, with the goal of performing data cleaning
-
-    # Instructions
-    You create a python snippet, which is your only output.
-    Your snippet will address the requested column of the dataframe, only performing what is asked.
-    DO NOT CHANGE the original dataframe and column of interest, apply what requested on a newly generated series.
-    IMPORTANT: The output series MUST be named exactly "lm_transformed_column"
-    You can only use pandas, numpy, math and re.
-    Never wrap the output in a markdown format, like ```python ```.
-
-    ## Output format
-    You only output python code, without imports (they are already present).
-    Your output will be executed with exec(your_answer) in a restricted environment, so code accordingly.
-"""
-
+    
     user_prompt = f"""# Request
 This is the origin dataframe name: {df_name}
 The column you must use to generate the new series: {column_name}
-My request: {request}
-    """
-    
-    full_prompt = f"""{instruction_prompt}
-    {user_prompt}
-    """
-    
-    security_prompt = f"""RETURN '0' if:
-- The REQUEST cannot be related to data processing or cleaning for column '{column_name}' of dataframe '{df_name}'.
-- The REQUEST creates code that is harmful to local storage or computer.
-- The REQUEST contains pre-written code of any language.
+My request: \n{request}
+"""
 
-REQUEST:
-    '''
-    {request}
-    '''
-    """
+    match connectivity:
+        
+        case "api":
+            model_name = 'gemini-2.5-flash'
+            load_dotenv() # Verify to have a GEMINI_API_KEY in your .env
+            try:
+                client = genai.Client()
+                
+                # Sample call for Gemini API
+                response = client.models.generate_content(
+                    model= model_name,
+                    contents= request,
+                    config=types.GenerateContentConfig(
+                        thinking_config = types.ThinkingConfig(thinking_budget=0), # Disables thinking
+                        system_instruction = security_prompt
+                    ),)
+                
+                if int(response.text) != 0:
+                    time.sleep(3)
+                    response = client.models.generate_content(
+                    model= model_name,
+                    contents=user_prompt,
+                    config=types.GenerateContentConfig(
+                        thinking_config = types.ThinkingConfig(thinking_budget=0), # Disables thinking
+                        system_instruction = coder_data_cleaner_system_prompt
+                    ),) 
+                    code = response.text
+                
+                else:
+                    code = "print('FUCK YOU BITCH')"
+                    
+            except ConnectionError as e:
+                print(f"API connection not working:\n {e}")
+                
+
     
-    # security_data = {
-    #     "model": "qwen2.5-coder:3b",  # Replace with your model name
-    #     "prompt": security_prompt,
-    #     "stream": False,
-    # }
+        case "local": # Using OLLAMA for local testing
+            import requests  # lazy import so the app still runs if requests is missing
+            url = "http://localhost:11434/api/generate"
+            
+            full_prompt = f"""{coder_data_cleaner_system_prompt}
+            {user_prompt}
+            """
 
-    data = {
-        "model": "qwen2.5-coder:3b",  # Replace with your model name
-        "prompt": full_prompt,
-        "stream": False,
-    }
+            data = {
+                "model": "qwen2.5-coder:3b",  # Replace with your model name
+                "prompt": full_prompt,
+                "stream": False,
+            }
 
-    try:
-        # response = requests.post(url, json=security_data, timeout=60, )
-        # response.raise_for_status()
-        # payload = response.json()
-        # pass_or_not = payload.get("response", "")
-        pass_or_not=1
-        
-        if pass_or_not != 0:
-            time.sleep(3)
-            response = requests.post(url, json=data, timeout=60)
-            response.raise_for_status()
-            payload = response.json()
-            code = payload.get("response", "")
-        
-        else:
-            code = f"{pass_or_not}"
-        
-    except Exception as e:
-        # BUGFIX: robust error handling so the UI doesn’t crash if the endpoint is down
-        st.error(f"LLM call failed: {e}")
-        return None
+            try:
+                time.sleep(3)
+                response = requests.post(url, json=data, timeout=60)
+                response.raise_for_status()
+                payload = response.json()
+                code = payload.get("response", "")
+
+            except ConnectionError as e:
+                print(f"API connection not working:\n {e}")
 
     # Remove any fenced code blocks if present (``` or ```python)
     code = re.sub(r"^```(?:python)?\s*", "", code.strip(), flags=re.IGNORECASE)
@@ -156,11 +178,9 @@ def infer_datetime_format(series: pd.Series) -> str:
     except Exception:
         return "Unknown"
 
-
 # ----------------------------------------------------------------------------
 # Helper: Auto-type assignment for UI logic
 # ----------------------------------------------------------------------------
-
 def get_autotype(ser: pd.Series) -> str:
     nunique = ser.nunique(dropna=True)
     if pd.api.types.is_float_dtype(ser):
