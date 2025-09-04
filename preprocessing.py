@@ -13,7 +13,7 @@ import numpy as np
 import re
 from src.util import action_radio_for_column
 from sklearn.impute import KNNImputer
-from src.data_clean import get_autotype, ask_llm, iqr_outlier_percent, infer_datetime_format
+from src.data_clean import get_autotype, ask_llm_data_clean, iqr_outlier_percent, infer_datetime_format
 # import requests  # will import lazily inside ask_llm to avoid import errors if requests not installed
 
 # ----------------------------------------------------------------------------
@@ -79,6 +79,7 @@ if st.session_state["dataframe"] is not None:
     # Preview
     st.subheader("Dataset Preview")
     st.dataframe(df.head(20), use_container_width=True)
+    st.experimental_data_editor(df.head(20))
 
     # Type detection – recomputed on each run (cheap and consistent)
     autotype_dict = {col: get_autotype(df[col]) for col in df.columns}
@@ -413,7 +414,7 @@ IMPORTANT: Avoid using transformations that may cause data or label leakage""",
                 # Submit button for LLM request
                 if st.button("Submit", key=f"llm_submit_{col}"):
                     with st.spinner("Generating code..."):
-                        code = ask_llm("df", col, llm_request)
+                        code =  ask_llm_data_clean("df", col, llm_request)# connectivity ="api")
                         if code:
                             st.session_state.llm_code = code
                             st.markdown("**LLM-proposed code:**")
@@ -534,7 +535,21 @@ IMPORTANT: Avoid using transformations that may cause data or label leakage""",
                         df[new_col] = dummies_preview[new_col]
                     st.session_state.last_action = f"One-hot encoding applied to {col}"
                     st.rerun()
+                    
+            elif action == "Ask LLM":
+                # Initialize session state for LLM results if not exists
+                if 'llm_new_series' not in st.session_state:
+                    st.session_state.llm_new_series = None
+                if 'llm_code' not in st.session_state:
+                    st.session_state.llm_code = None
 
+                llm_request = st.text_area(
+                    label="""**Describe your request for the LLM**.  
+IMPORTANT: Avoid using transformations that may cause data or label leakage""",
+                    value="Change the column from string to numeric by removing the $ dollar sign and keeping its numbers only",
+                    key=f"llm_req_{col}"
+                )
+            
         # -------------------- Boolean --------------------
         elif vartype == "Boolean":
             st.info("Convert True/Yes to 1 and False/No to 0 (unrecognized values stay NaN).")
@@ -559,7 +574,23 @@ IMPORTANT: Avoid using transformations that may cause data or label leakage""",
 
         # -------------------- Descriptive --------------------
         elif vartype == "Descriptive":
-            st.info("No transformations available for descriptive variables yet.")
+            action = action_radio_for_column(col = col, coltype = vartype)
+            if action == "Ask LLM":
+                # Initialize session state for LLM results if not exists
+                if 'llm_new_series' not in st.session_state:
+                    st.session_state.llm_new_series = None
+                if 'llm_code' not in st.session_state:
+                    st.session_state.llm_code = None
+
+                llm_request = st.text_area(
+                    label="""**Describe your request for the LLM**.  
+IMPORTANT: Avoid using transformations that may cause data or label leakage""",
+                    value="Change the column from string to numeric by removing the $ dollar sign and keeping its numbers only",
+                    key=f"llm_req_{col}"
+                )
+                
+            st.info("No pre-made transformations available for descriptive variables yet.")
+            
             # SUGGESTION: add text cleanup (strip, lower, remove extra spaces/punctuation) and length stats
 
         # -------------------- Datetime --------------------
@@ -569,7 +600,6 @@ IMPORTANT: Avoid using transformations that may cause data or label leakage""",
             to_string = st.checkbox("Output as string (checked) or keep datetime dtype", value=True)
             if st.button("Apply", key=f"apply_dt_{col}"):
                 try:
-                    # BUGFIX: use errors='coerce' so bad parses become NaT, not exceptions
                     parsed = pd.to_datetime(ser, errors="coerce")
                     if to_string:
                         df[col] = parsed.dt.strftime(new_fmt)
@@ -618,14 +648,7 @@ IMPORTANT: Avoid using transformations that may cause data or label leakage""",
         else:
             st.session_state["problem_type"] = detected
             
-        #     # Let user override if they really want (optional)
-        #     st.session_state["problem_type"] = st.radio(
-        #         "Detected problem type - you can override",
-        #         ["classification", "regression"],
-        #         index=0 if detected in ["classification_multi", "classification_binary"] else 1,
-        #         horizontal=True,
-        #     )
-
+            
     if st.button("Confirm Dataset and Target Variable"):
         if st.session_state.get("target") and st.session_state.get("problem_type"):
             st.session_state["confirmed"] = True

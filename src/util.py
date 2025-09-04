@@ -1,4 +1,5 @@
 import streamlit as st 
+import pandas as pd
 
 # ========================= LLM availability + dynamic radio =========================
 # Paste this somewhere near your other utils (before you render the radios).
@@ -55,6 +56,12 @@ def available_llm(model_name: str = "qwen2.5-coder:3b",
     info = _probe(url)
     return bool(info["alive"] and (model_name in info["models"]))
 
+def get_numeric_x_and_y_from_df(dataframe:pd.DataFrame, target:str):
+    a_clean = dataframe.dropna()
+    X = a_clean.select_dtypes(include=['float64', 'int64']).drop([target], axis=1, errors='ignore')
+    y = a_clean[target]
+
+    return X, y 
 
 def action_radio_for_column(col: str,
                             coltype: str,
@@ -119,11 +126,6 @@ def action_radio_for_column(col: str,
     return action
 
 # ========================= Usage example =========================
-# for col in some_numeric_columns:
-#     action = action_radio_for_column(col, llm_model="qwen2.5-coder:3b", llm_url="http://localhost:11434")
-#     if action == "Ask LLM":
-#         # call your ask_llm(...) helper
-#         pass
 
 
 def show_centered_matplotlib(fig, width_ratio=2.4):
@@ -131,3 +133,160 @@ def show_centered_matplotlib(fig, width_ratio=2.4):
     left_ , mid, right_ = st.columns([1, width_ratio, 1])
     with mid:
         st.pyplot(fig, use_container_width=True)
+        
+        
+def debug_cross_val(grid_search):
+    st.markdown("---")
+    # Get the results and put them into a DataFrame
+    results = pd.DataFrame(grid_search.cv_results_)
+
+    # Select and display the relevant columns, sorted by mean test score
+    ranked_results = results[[
+    'rank_test_score',
+    'mean_test_score',
+    'std_test_score',
+    'params'
+    ]].sort_values(by='rank_test_score')
+    st.dataframe(ranked_results)
+    st.markdown("---")
+    
+    
+def are_params_empty(param_grid, necessary_params=None, not_necessary_params=None):
+    """
+    Checks if a parameter grid is valid based on necessary and optional parameters.
+
+    Args:
+        param_grid (list of dict): The list of parameter dictionaries for GridSearchCV.
+        necessary_params (list of str): A list of parameter names that must be present
+                                        and non-empty in ALL dictionaries of the grid.
+        not_necessary_params (list of str): A list of parameter names that are optional.
+                                            If they exist in a dictionary, they must be non-empty.
+
+    Returns:
+        True if any invalid configuration is found, False otherwise.
+    """
+    
+    if not param_grid:
+        st.error("⚠️ Error: The parameter grid is empty. Please select at least one parameter")
+        return True
+
+    # Check that all necessary params are present and non-empty in all sub-dictionaries
+    if necessary_params is not None:
+        for param_dict in param_grid:
+            for necessary_param in necessary_params:
+                if necessary_param not in param_dict:
+                    st.error(f"⚠️ Error: The parameter '{necessary_param}' is missing from a grid configuration.")
+                    return True
+                if not param_dict[necessary_param]:
+                    st.error(f"⚠️ Error: Please select at least one value for '{necessary_param}'.")
+                    return True
+    else:
+        raise Exception("Necessary items are needed")
+
+    # Check for empty optional params if they are present in a sub-dictionary
+    if not_necessary_params is not None:
+        for param_dict in param_grid:
+            for optional_param in not_necessary_params:
+                if optional_param in param_dict and not param_dict[optional_param]:
+                    st.error(f"⚠️ Error: Please select at least one value for '{optional_param}'.")
+                    return True
+
+    return False
+
+
+
+
+# FUNCTIONS FOR MODELS EXPLAINABILITY
+
+def generate_model_formula_latex(y: pd.Series, X: pd.DataFrame, model_type: str, model=None):
+    """
+    Generates a LaTeX formula for a linear or logistic regression model.
+
+    Args:
+        y (pd.Series): The pandas Series representing the target variable.
+        X (pd.DataFrame): The DataFrame containing the feature variables.
+        model_type (str): The type of model ('linear_regression' or 'logistic_regression').
+        model (object, optional): A fitted scikit-learn model with a `coef_` and `intercept_`
+                                  attribute. Defaults to None.
+
+    Returns:
+        str: A LaTeX-formatted string of the model formula.
+    """
+    # Use the .name attribute to get the name of the target variable
+    target_name = y.name
+    features_sorted = sorted(X.columns.tolist())
+    
+    # Handle the intercept term
+    if model and hasattr(model, 'intercept_'):
+        intercept = f"{model.intercept_[0]:.2f}" if model.intercept_.size > 0 else "0"
+        linear_part_list = [intercept]
+    else:
+        linear_part_list = [r'\beta_0']
+    
+    # Handle the coefficient terms
+    if model and hasattr(model, 'coef_'):
+        # Flatten coef_ if it's a 2D array (e.g., from LogisticRegression)
+        coeffs = model.coef_.flatten()
+        for i, feature in enumerate(features_sorted):
+            sign = '+' if coeffs[i] >= 0 else ''
+            term = f"{sign}{coeffs[i]:.2f}x_{{{feature}}}"
+            linear_part_list.append(term)
+        linear_part = ' '.join(linear_part_list).replace('+ -', '- ')
+    else:
+        for i, feature in enumerate(features_sorted):
+            term = rf'\beta_{{{i+1}}} x_{{{feature}}}'
+            linear_part_list.append(term)
+        linear_part = '+'.join(linear_part_list).replace('+ -', '- ')
+
+
+    if model_type == 'linear_regression':
+        formula = rf'{target_name} = {linear_part}'
+        
+    elif model_type == 'logistic_regression':
+        formula = rf'P({target_name}=1) = \sigma({linear_part})'
+        
+    else:
+        formula = r'Invalid Model Type'
+    
+    return formula
+
+
+
+def show_home_page(background_image_path):
+    """
+    Displays the home page with a background image, title, description, and a button to proceed.
+
+    Args:
+        background_image_path (str): The path to the background image.
+    """
+    # NOTE: The user should provide the actual path to the background image.
+    # For now, we'll use a placeholder.
+    # Example: set_background('assets/background.png')
+
+    st.markdown(
+        f"""
+         <style>
+         .stApp {{
+             background-image: url("{background_image_path}");
+             background-attachment: fixed;
+             background-size: cover
+         }}
+         .bottom-right-button {{
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+         }}
+         </style>
+         """,
+        unsafe_allow_html=True
+    )
+
+    st.title("Dataset analysis playground")
+    st.write("This application helps you analyze your dataset. You can clean your data, visualize it, and train machine learning models.")
+
+    # "Let's go" button in the bottom right
+    st.markdown('<div class="bottom-right-button">', unsafe_allow_html=True)
+    if st.button("Let's go!"):
+        st.session_state.home_page_complete = True
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)

@@ -4,12 +4,12 @@ from src.util import show_centered_matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sns
 import math
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler, PolynomialFeatures
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression, Lasso, Ridge
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.pipeline import Pipeline
-from src .util import debug_cross_val, generate_model_formula_latex
+from src.util import get_numeric_x_and_y_from_df
 
 # ------------------------ Step 1: Parameter Selection ------------------------
 st.title("Linear Models Training & Testing")
@@ -43,40 +43,45 @@ if st.session_state.confirmed:
     dataframe = st.session_state['dataframe']
     target = st.session_state['target']
     first_time = st.session_state.LM_first_entered
+    
+    #HERE YOU HAVE TO CREATE MAGIC
+    if st.toggle("Show Correlation Chart"):
+        st.subheader("Correlation Matrix")
+        # Consider using a smaller sample for performance on large datasets
+        sample_df = dataframe.sample(min(1000, len(dataframe)))
+        fig = sns.pairplot(sample_df, diag_kind='kde')
+        st.pyplot(fig)
 
-    st.sidebar.header('Model Type')
-    model_type = st.sidebar.selectbox("Select Linear Model", ["Linear Regression", "Polynomial Regression", "Lasso", "Ridge"])
+
+    st.sidebar.header('Model Parameters')
+    test_size = st.sidebar.slider('Test Size (%)', min_value=5, max_value=50, value=20, step=5) / 100
+    cv_folds = st.sidebar.slider('CV Folds', min_value=2, max_value=10, value=5, help="Number of folds for cross-validation during GridSearchCV.")
+    regularization = st.sidebar.multiselect("Regularization", ["None", "Lasso", "Ridge"], default="None")
+
+    alphas = None
+    if "Lasso" in regularization or "Ridge" in regularization:
+        alphas = st.sidebar.multiselect('Alpha (Regularization Strength)', [0.001, 0.01, 0.1, 1.0, 10.0, 100.0], default=[0.1, 1.0], help="Select multiple values for GridSearchCV")
+
+    st.sidebar.markdown('---')
+    seed = st.sidebar.number_input('Random State (seed)', min_value=0, max_value=2_147_483_647, value=42, step=1)
+
 
     if first_time:
         st.session_state.LM_last_params = {
             'test_size': None,
-            'model_type': None,
-            'degree': None,
-            'alpha': None,
+            'cv_folds': None,
+            'regularization': None,
+            'alphas': None,
+            'random_state': None
         }
-
-    # Widgets collect parameter inputs from user
-    st.sidebar.header('Model Parameters')
-    test_size = st.sidebar.slider('Test Size (%)', min_value=5, max_value=50, value=20, step=5) / 100
-
-    degree = None
-    if model_type == "Polynomial Regression":
-        degree = st.sidebar.slider('Polynomial Degree', min_value=2, max_value=10, value=2, step=1)
-
-    alpha = None
-    if model_type in ["Lasso", "Ridge"]:
-        alpha = st.sidebar.slider('Alpha (Regularization Strength)', min_value=0.01, max_value=10.0, value=1.0, step=0.01)
-        
-    st.sidebar.markdown('---')
-    seed = st.sidebar.number_input('Random State (seed)', min_value=0, max_value=2_147_483_647, value=42, step=1)
 
     # Store last-used hyperparameters to detect changes
     LM_current_params = {
         'test_size': test_size,
-        'model_type': model_type,
-        'degree': degree,
-        'alpha': alpha,
-        'random_state': seed,
+        'cv_folds': cv_folds,
+        'regularization': regularization,
+        'alphas': alphas,
+        'random_state': seed
     }
 
     # TRAIN trigger
@@ -97,6 +102,8 @@ if st.session_state.confirmed:
         st.session_state.LM_tested = False
         st.session_state.pop('LM_test_metrics', None)
         st.session_state.pop('LM_y_pred', None)
+        st.session_state.pop('LM_cv_summary', None)
+
 
     if st.session_state.LM_params_changed is True:
         st.warning("⚠️ Parameters have changed. Please re-train the model.")
@@ -104,71 +111,112 @@ if st.session_state.confirmed:
     # ------------------------ Step 2: Training (Compute) ------------------------
     if st.session_state.LM_to_train is True and st.session_state.LM_to_test is False:
         with st.spinner("Training model…"):
-            a_clean = dataframe.dropna()
-            X = a_clean.select_dtypes(include=['float64', 'int64']).drop([target], axis=1, errors='ignore')
-            y = a_clean[target]
+            X, y = get_numeric_x_and_y_from_df(dataframe, target)
 
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y,
                 test_size=st.session_state.LM_last_params['test_size'],
                 random_state=st.session_state.LM_last_params['random_state']
             )
+            
+            # The scaler should be part of the pipeline to prevent data leakage from the test set
+            pipeline = Pipeline([
+                ('scaler', StandardScaler()),
+                ('model', LinearRegression()) # Placeholder
+            ])
 
-            scaler = StandardScaler()
+            regularization_types = st.session_state.LM_last_params['regularization']
+            alphas_to_tune = st.session_state.LM_last_params['alphas']
 
-            model_type = st.session_state.LM_last_params['model_type']
-
-            if model_type == "Linear Regression":
-                model = LinearRegression()
-                pipeline = Pipeline(steps=[('scaler', scaler), ('model', model)])
+            if "None" in regularization_types and len(regularization_types) == 1:
                 pipeline.fit(X_train, y_train)
+                st.session_state.LM_best_model = pipeline
+                st.session_state.LM_cv_summary = None
 
-            elif model_type == "Polynomial Regression":
-                degree = st.session_state.LM_last_params['degree']
-                model = Pipeline([
-                    ('poly', PolynomialFeatures(degree=degree)),
-                    ('scaler', scaler),
-                    ('regressor', LinearRegression())
-                ])
-                model.fit(X_train, y_train)
-                pipeline = model
+            else:
+                if not alphas_to_tune:
+                    st.error("Please select at least one Alpha value for regularization.")
+                    st.stop()
 
-            elif model_type == "Lasso":
-                alpha = st.session_state.LM_last_params['alpha']
-                model = Lasso(alpha=alpha)
-                pipeline = Pipeline(steps=[('scaler', scaler), ('model', model)])
-                pipeline.fit(X_train, y_train)
+                # Create a list of models for each regularization type
+                models = []
+                if "Lasso" in regularization_types:
+                    models.append(('Lasso', Lasso(random_state=st.session_state.LM_last_params['random_state'])))
+                if "Ridge" in regularization_types:
+                    models.append(('Ridge', Ridge(random_state=st.session_state.LM_last_params['random_state'])))
 
-            elif model_type == "Ridge":
-                alpha = st.session_state.LM_last_params['alpha']
-                model = Ridge(alpha=alpha)
-                pipeline = Pipeline(steps=[('scaler', scaler), ('model', model)])
-                pipeline.fit(X_train, y_train)
+                # Create parameter grid including model type and alpha
+                param_grid = {
+                    'model': [model[1] for model in models],
+                    'model__alpha': alphas_to_tune
+                }
+
+                grid_search = GridSearchCV(
+                    pipeline,
+                    param_grid,
+                    cv=st.session_state.LM_last_params['cv_folds'],
+                    scoring='neg_root_mean_squared_error',
+                    return_train_score=True
+                )
+                grid_search.fit(X_train, y_train)
+                
+                st.session_state.LM_best_model = grid_search.best_estimator_
+                st.session_state.LM_cv_summary = pd.DataFrame(grid_search.cv_results_)
+
 
             st.success("✅ Training Completed")
 
-            st.session_state.LM_cv_results = pipeline
             st.session_state.LM_X_test = X_test
             st.session_state.LM_y_test = y_test
             st.session_state.LM_trained = True
-            
-    # ------------------------ Step 2: Training (Display CV metrics) ------------------------
+
     if st.session_state.LM_trained is True:
         st.markdown("### 🏋 Training Set Operations")
         st.markdown("")
-        st.markdown("#### 🎯 Model Parameters")
 
         params = st.session_state.LM_last_params
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Model Type", params['model_type'])
-        if params['degree']:
-            col2.metric("Polynomial Degree", params['degree'])
-        if params['alpha']:
-            col3.metric("Alpha", params['alpha'])
+        
+        if "None" not in params['regularization']:
+            st.markdown("#### 🎯 Best Parameters")
+            best_model = st.session_state.LM_best_model
+            col1, col2 = st.columns(2)
+            model_type = best_model.named_steps['model'].__class__.__name__
+            col1.metric("Best Model Type", model_type)
+            best_alpha = best_model.named_steps['model'].alpha
+            col2.metric("Best Alpha", f"{best_alpha:.4f}")
+            
+            st.markdown("#### 🧪 Cross-Validation Performance")
+            cv_results = st.session_state.get('LM_cv_summary')
+            if cv_results is not None:
+                st.write("CV Results Summary:")
+                # Add model type to the summary
+                cv_summary = cv_results[['param_model', 'param_model__alpha', 'mean_test_score', 'std_test_score', 'mean_train_score']]
+                # Extract model type from the parameter
+                cv_summary['Model Type'] = cv_summary['param_model'].apply(lambda x: x.__class__.__name__)
+                cv_summary = cv_summary.drop('param_model', axis=1)
+                cv_summary = cv_summary.rename(columns={
+                    'param_model__alpha': 'Alpha',
+                    'mean_test_score': 'Mean Test RMSE',
+                    'std_test_score': 'Std Test RMSE',
+                    'mean_train_score': 'Mean Train RMSE'
+                })
+                # Invert the sign of scores since we used 'neg_root_mean_squared_error'
+                cv_summary['Mean Test RMSE'] = -cv_summary['Mean Test RMSE']
+                cv_summary['Mean Train RMSE'] = -cv_summary['Mean Train RMSE']
+                st.dataframe(cv_summary.style.format({
+                    'Alpha': '{:.4f}',
+                    'Mean Test RMSE': '{:.4f}',
+                    'Std Test RMSE': '{:.4f}',
+                    'Mean Train RMSE': '{:.4f}'
+                }))
+
+        else: # No regularization
+            st.markdown("#### 🎯 Model Parameters")
+            col1, _ = st.columns(2)
+            col1.metric("Model Type", "Linear Regression")
 
         st.session_state.LM_to_train = False
 
-        # ------------------------ Step 3: Testing (Trigger + Compute) ------------------------
         st.markdown("---")
         if st.button("🧮 Run Test Evaluation"):
             st.session_state.LM_to_test = True
@@ -176,10 +224,10 @@ if st.session_state.confirmed:
         if st.session_state.LM_to_test is True:
             with st.spinner("Testing model…"):
                 st.markdown("### 🔍 Test Set Evaluation")
-                cv_results = st.session_state.LM_cv_results
+                best_model = st.session_state.LM_best_model
                 X_test = st.session_state.LM_X_test
                 y_test = st.session_state.LM_y_test
-                y_pred = cv_results.predict(X_test)
+                y_pred = best_model.predict(X_test)
                 st.session_state.LM_y_pred = y_pred
 
                 st.session_state.LM_test_metrics = {

@@ -9,175 +9,176 @@ from sklearn.metrics import (
     roc_auc_score, precision_recall_curve, roc_curve, auc
 )
 from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from xgboost import XGBClassifier, XGBRegressor
 from sklearn.metrics import (
     accuracy_score, classification_report,
     mean_squared_error, mean_absolute_error, r2_score
 )
 
 # ------------------------ Step 1: Parameter Selection ------------------------
-st.title("Random Forest Model Training & Testing")
+st.title("XGBoost Model Training & Testing")
 
 # Check if data was uploaded and confirmed
 if not st.session_state.get('confirmed', False):
     st.warning("Please upload and confirm your dataset first in the Home page.")
     st.stop()
-    
+
 if hasattr(st.session_state.get('uploaded_file', None), 'name'):
     st.header(f"Analysis of < {st.session_state.uploaded_file.name} >")
 
 # ------------------------ Session State Init ------------------------
-if 'RF_trained' not in st.session_state:
-    st.session_state.RF_trained = False  # Tracks if the model has been trained
+if 'XGB_trained' not in st.session_state:
+    st.session_state.XGB_trained = False
 
-# FIX: previously this branch reassigned RF_trained; initialize RF_to_train correctly.
-if 'RF_to_train' not in st.session_state:
-    st.session_state.RF_to_train = False
+if 'XGB_to_train' not in st.session_state:
+    st.session_state.XGB_to_train = False
 
-if 'RF_tested' not in st.session_state:
-    st.session_state.RF_tested = False    
-if 'RF_to_test' not in st.session_state:
-    st.session_state.RF_to_test = False   # Tracks if the test evaluation has been run
-if 'RF_params_changed' not in st.session_state:
-    st.session_state.RF_params_changed = False  # Tracks if any parameter has changed and retraining is needed
-if 'RF_first_entered' not in st.session_state:
-    st.session_state.RF_first_entered = True
+if 'XGB_tested' not in st.session_state:
+    st.session_state.XGB_tested = False
+if 'XGB_to_test' not in st.session_state:
+    st.session_state.XGB_to_test = False
+if 'XGB_params_changed' not in st.session_state:
+    st.session_state.XGB_params_changed = False
+if 'XGB_first_entered' not in st.session_state:
+    st.session_state.XGB_first_entered = True
 
 # ------------------------ UI & Param Capture ------------------------
 if st.session_state.confirmed:
     dataframe = st.session_state['dataframe']
     target = st.session_state['target']
-    first_time = st.session_state.RF_first_entered
-    
+    first_time = st.session_state.XGB_first_entered
+
     if first_time:
-        st.session_state.RF_last_params = {
+        st.session_state.XGB_last_params = {
             'test_size': None,
             'cv_folds': None,
             'n_estimators': None,
             'max_depth': None,
-            'min_samples_split': None,
-            'random_state': None, 
+            'learning_rate': None,
+            'subsample': None,
+            'colsample_bytree': None,
         }
-            
+
     # Widgets collect parameter inputs from user
     st.sidebar.header('Model Parameters')
     test_size = st.sidebar.slider('Test Size (%)', min_value=5, max_value=50, value=20, step=5) / 100
     cv_folds = st.sidebar.slider('CV Folds', min_value=2, max_value=10, value=5)
     st.sidebar.markdown('---')
     n_estimators = st.sidebar.multiselect('n_estimators', [10, 20, 100, 200, 300], default=[100, 200], accept_new_options=True, max_selections=5)
-    max_depth = st.sidebar.multiselect('max_depth', [5, 10, 20, None], default=[10, 20], accept_new_options=True, max_selections=5)
-    min_samples_split = st.sidebar.multiselect('min_samples_split', [2, 5, 10], default=[2, 5], accept_new_options=True, max_selections=5)
+    max_depth = st.sidebar.multiselect('max_depth', [3, 5, 7, 9], default=[3, 5], accept_new_options=True, max_selections=4)
+    learning_rate = st.sidebar.multiselect('learning_rate', [0.01, 0.1, 0.2], default=[0.1], accept_new_options=True, max_selections=3)
+    subsample = st.sidebar.multiselect('subsample', [0.6, 0.8, 1.0], default=[1.0], accept_new_options=True, max_selections=3)
+    colsample_bytree = st.sidebar.multiselect('colsample_bytree', [0.6, 0.8, 1.0], default=[1.0], accept_new_options=True, max_selections=3)
     st.sidebar.markdown('---')
     seed = st.sidebar.number_input('Random State (seed)', min_value=0, max_value=2_147_483_647, value=42, step=1)
-    
-    # Store last-used hyperparameters to detect changes        
-    RF_current_params = {
+
+    # Store last-used hyperparameters to detect changes
+    XGB_current_params = {
         'test_size': test_size,
         'cv_folds': cv_folds,
         'n_estimators': n_estimators,
         'max_depth': max_depth,
-        'min_samples_split': min_samples_split,
+        'learning_rate': learning_rate,
+        'subsample': subsample,
+        'colsample_bytree': colsample_bytree,
         'random_state': seed,
     }
-    
+
     # TRAIN trigger
     if st.button("🚀 Start Training"):
-        st.session_state.RF_to_train = True
-        st.session_state.RF_first_entered = False
-        st.session_state.RF_params_changed = False 
-        st.session_state.RF_last_params = RF_current_params
-        st.session_state.RF_to_test = False
-        st.session_state.RF_tested = False  # reset tested when we start a new training
+        st.session_state.XGB_to_train = True
+        st.session_state.XGB_first_entered = False
+        st.session_state.XGB_params_changed = False
+        st.session_state.XGB_last_params = XGB_current_params
+        st.session_state.XGB_to_test = False
+        st.session_state.XGB_tested = False
 
     # Param change detection after button logic
-    if (RF_current_params != st.session_state.RF_last_params) and st.session_state.RF_trained is True:
-        st.session_state.RF_params_changed = True
-        st.session_state.RF_to_train = False
-        st.session_state.RF_trained = False
-        st.session_state.RF_to_test = False 
-        st.session_state.RF_tested = False
-        # Also clear previously stored metrics so we don't render stale results
-        st.session_state.pop('RF_test_metrics', None)
-        st.session_state.pop('RF_cv_summary', None)
-        st.session_state.pop('RF_y_pred', None)
-        st.session_state.pop('RF_y_proba', None)
+    if (XGB_current_params != st.session_state.XGB_last_params) and st.session_state.XGB_trained is True:
+        st.session_state.XGB_params_changed = True
+        st.session_state.XGB_to_train = False
+        st.session_state.XGB_trained = False
+        st.session_state.XGB_to_test = False
+        st.session_state.XGB_tested = False
+        st.session_state.pop('XGB_test_metrics', None)
+        st.session_state.pop('XGB_cv_summary', None)
+        st.session_state.pop('XGB_y_pred', None)
+        st.session_state.pop('XGB_y_proba', None)
 
-    # --- UI DISPLAY LAST ---
-    if st.session_state.RF_params_changed is True:
+    if st.session_state.XGB_params_changed is True:
         st.warning("⚠️ Parameters have changed. Please re-train the model.")
 
-    # ------------------------ Step 2: Training (Compute) ------------------------    
-    if st.session_state.RF_to_train is True and st.session_state.RF_to_test is False:
+    # ------------------------ Step 2: Training (Compute) ------------------------
+    if st.session_state.XGB_to_train is True and st.session_state.XGB_to_test is False:
         with st.spinner("Training model…"):
             a_clean = dataframe.dropna()
             X = a_clean.select_dtypes(include=['float64', 'int64']).drop([target], axis=1, errors='ignore')
             y = a_clean[target]
-                    
-            # Split once: train vs test. We will rely on CV (k = cv_folds) inside GridSearch for "validation".
+
             X_train, X_test, y_train, y_test = train_test_split(
-                X, y, 
-                test_size=st.session_state.RF_last_params['test_size'], 
-                random_state=st.session_state.RF_last_params['random_state']
+                X, y,
+                test_size=st.session_state.XGB_last_params['test_size'],
+                random_state=st.session_state.XGB_last_params['random_state']
             )
 
-            # NOTE: Keeping the scaler here to mirror your original approach.
-            # For leakage-free CV, you'd typically put the scaler INSIDE a Pipeline.
             scaler = StandardScaler()
             X_train_scaled = scaler.fit_transform(X_train)
             X_test_scaled = scaler.transform(X_test)
 
-            # CLASSIFICATION
             if st.session_state["problem_type"] in ["classification_multi", "classification_binary"]:
-                rf = RandomForestClassifier(random_state=st.session_state.RF_last_params['random_state'])
-                param_grid = [{
-                    'n_estimators': st.session_state.RF_last_params['n_estimators'],
-                    'max_depth': st.session_state.RF_last_params['max_depth'],
-                    'min_samples_split': st.session_state.RF_last_params['min_samples_split']
-                }]
-                
-                grid_search = GridSearchCV(
-                    rf,
-                    param_grid, 
-                    cv=st.session_state.RF_last_params['cv_folds'],
-                    scoring='accuracy',
-                    return_train_score=False  # keep it lean; set True if you want to display train CV too
-                )
-                grid_search.fit(X_train_scaled, y_train)
+                le = LabelEncoder()
+                y_train_encoded = le.fit_transform(y_train)
 
-                # NEW: capture CV summary (mean ± std for the selected scorer at best params)
+                xgb = XGBClassifier(random_state=st.session_state.XGB_last_params['random_state'], use_label_encoder=False, eval_metric='mlogloss')
+                param_grid = [{
+                    'n_estimators': st.session_state.XGB_last_params['n_estimators'],
+                    'max_depth': st.session_state.XGB_last_params['max_depth'],
+                    'learning_rate': st.session_state.XGB_last_params['learning_rate'],
+                    'subsample': st.session_state.XGB_last_params['subsample'],
+                    'colsample_bytree': st.session_state.XGB_last_params['colsample_bytree'],
+                }]
+
+                grid_search = GridSearchCV(
+                    xgb,
+                    param_grid,
+                    cv=st.session_state.XGB_last_params['cv_folds'],
+                    scoring='accuracy',
+                    return_train_score=False
+                )
+                grid_search.fit(X_train_scaled, y_train_encoded)
+
                 best_idx = grid_search.best_index_
                 cv_mean = grid_search.cv_results_['mean_test_score'][best_idx]
                 cv_std  = grid_search.cv_results_['std_test_score'][best_idx]
-                st.session_state.RF_cv_summary = {
-                    "k": st.session_state.RF_last_params['cv_folds'],
+                st.session_state.XGB_cv_summary = {
+                    "k": st.session_state.XGB_last_params['cv_folds'],
                     "metrics": {"Accuracy": {"mean": float(cv_mean), "std": float(cv_std)}},
                     "primary": "Accuracy"
                 }
-                    
-            # REGRESSION
+
             elif st.session_state["problem_type"] == "regression":
-                rf = RandomForestRegressor(random_state=st.session_state.RF_last_params['random_state'])
+                xgb = XGBRegressor(random_state=st.session_state.XGB_last_params['random_state'])
                 param_grid = [{
-                    'n_estimators': st.session_state.RF_last_params['n_estimators'],
-                    'max_depth': st.session_state.RF_last_params['max_depth'],
-                    'min_samples_split': st.session_state.RF_last_params['min_samples_split']
+                    'n_estimators': st.session_state.XGB_last_params['n_estimators'],
+                    'max_depth': st.session_state.XGB_last_params['max_depth'],
+                    'learning_rate': st.session_state.XGB_last_params['learning_rate'],
+                    'subsample': st.session_state.XGB_last_params['subsample'],
+                    'colsample_bytree': st.session_state.XGB_last_params['colsample_bytree'],
                 }]
-                
+
                 grid_search = GridSearchCV(
-                    rf,
+                    xgb,
                     param_grid,
-                    cv=st.session_state.RF_last_params['cv_folds'],
+                    cv=st.session_state.XGB_last_params['cv_folds'],
                     scoring=['neg_mean_absolute_error','neg_root_mean_squared_error','r2'],
                     refit='neg_root_mean_squared_error',
                     return_train_score=False
                 )
                 grid_search.fit(X_train_scaled, y_train)
 
-                # NEW: capture CV summary for all provided scorers at best params.
                 best_idx = grid_search.best_index_
                 cv = grid_search.cv_results_
-                # Convert neg metrics back to positive for display
                 mae_mean = -float(cv['mean_test_neg_mean_absolute_error'][best_idx])
                 mae_std  =  float(cv['std_test_neg_mean_absolute_error'][best_idx])
                 rmse_mean = -float(cv['mean_test_neg_root_mean_squared_error'][best_idx])
@@ -185,115 +186,106 @@ if st.session_state.confirmed:
                 r2_mean = float(cv['mean_test_r2'][best_idx])
                 r2_std  = float(cv['std_test_r2'][best_idx])
 
-                st.session_state.RF_cv_summary = {
-                    "k": st.session_state.RF_last_params['cv_folds'],
+                st.session_state.XGB_cv_summary = {
+                    "k": st.session_state.XGB_last_params['cv_folds'],
                     "metrics": {
                         "RMSE": {"mean": rmse_mean, "std": rmse_std},
                         "MAE":  {"mean": mae_mean,  "std": mae_std},
                         "R²":   {"mean": r2_mean,   "std": r2_std},
                     },
-                    "primary": "RMSE"  # matches refit metric choice
+                    "primary": "RMSE"
                 }
 
             st.success("✅ Training Completed")
 
-            # Persist artifacts for downstream use
-            st.session_state.RF_cv_results = grid_search
-            st.session_state.RF_X_test_scaled = X_test_scaled
-            st.session_state.RF_y_test = y_test    
-            st.session_state.RF_trained = True
-                    
-    # ------------------------ Step 2: Training (Display CV metrics) ------------------------
-    if st.session_state.RF_trained is True:
+            st.session_state.XGB_cv_results = grid_search
+            st.session_state.XGB_X_test_scaled = X_test_scaled
+            st.session_state.XGB_y_test = y_test
+            st.session_state.XGB_trained = True
+
+    if st.session_state.XGB_trained is True:
         st.markdown("### 🏋 Training Set Operations")
         st.markdown("")
         st.markdown("#### 🎯 Best Parameters")
-        cv_results = st.session_state.RF_cv_results
+        cv_results = st.session_state.XGB_cv_results
         col1, col2, col3 = st.columns(3)
         for idx, (param, value) in enumerate(cv_results.best_params_.items()):
             col = [col1, col2, col3][idx % 3]
             col.metric(f"{param}", f"{value}")
 
-        # CHANGED: show cross-validation summary (k-fold) instead of a single validation-split metric
         st.markdown("#### 🧪 Cross-Validation Performance")
-        cvsum = st.session_state.get("RF_cv_summary", {})
+        cvsum = st.session_state.get("XGB_cv_summary", {})
         if cvsum:
             k = cvsum.get("k", "?")
             mets = cvsum.get("metrics", {})
-            # Render up to three tiles per row
             cols = st.columns(min(3, max(1, len(mets))))
             for i, (name, stats) in enumerate(mets.items()):
                 mean_val = stats["mean"]
                 std_val = stats["std"]
                 label = f"CV {name} (k={k})"
-                cols[i % len(cols)].metric(label, f"{mean_val:.3f}") # ± {std_val:.3f}")
+                cols[i % len(cols)].metric(label, f"{mean_val:.3f}")
 
-        # After rendering training metrics we can safely stop retriggering the training block on reruns
-        st.session_state.RF_to_train = False
+        st.session_state.XGB_to_train = False
 
-        # ------------------------ Step 3: Testing (Trigger + Compute) ------------------------
         st.markdown("---")
         if st.button("🧮 Run Test Evaluation"):
-            st.session_state.RF_to_test = True
-        
-        if st.session_state.RF_to_test is True:
+            st.session_state.XGB_to_test = True
+
+        if st.session_state.XGB_to_test is True:
             with st.spinner("Testing model…"):
                 st.markdown("### 🔍 Test Set Evaluation")
-                # Recover saved objects from session_state (persistence across reruns)
-                cv_results = st.session_state.RF_cv_results
-                y_test = st.session_state.RF_y_test
-                y_pred = cv_results.predict(st.session_state.RF_X_test_scaled)
-                st.session_state.RF_y_pred = y_pred  # keep for later displays
-            
+                cv_results = st.session_state.XGB_cv_results
+                y_test = st.session_state.XGB_y_test
+                y_pred = cv_results.predict(st.session_state.XGB_X_test_scaled)
+                st.session_state.XGB_y_pred = y_pred
+
                 match st.session_state.problem_type:
-                    case 'classification_binary':  # Binary Classification metrics and plots 
-                        st.session_state.RF_y_proba = cv_results.predict_proba(st.session_state.RF_X_test_scaled)[:, 1]
-                        st.session_state.RF_test_metrics = {
+                    case 'classification_binary':
+                        st.session_state.XGB_y_proba = cv_results.predict_proba(st.session_state.XGB_X_test_scaled)[:, 1]
+                        st.session_state.XGB_test_metrics = {
                             "accuracy": float(accuracy_score(y_test, y_pred)),
                             "precision": float(precision_score(y_test, y_pred, zero_division=0)),
                             "recall": float(recall_score(y_test, y_pred, zero_division=0)),
                             "f1": float(f1_score(y_test, y_pred, zero_division=0)),
                             "confusion_matrix": confusion_matrix(y_test, y_pred)
                         }
-                    
-                    case 'classification_multi':  # Multiclass classification
-                        st.session_state.RF_y_proba = cv_results.predict_proba(st.session_state.RF_X_test_scaled)
-                        st.session_state.RF_test_metrics = {
+
+                    case 'classification_multi':
+                        st.session_state.XGB_y_proba = cv_results.predict_proba(st.session_state.XGB_X_test_scaled)
+                        st.session_state.XGB_test_metrics = {
                             "accuracy": float(accuracy_score(y_test, y_pred)),
                             "macro_f1": float(f1_score(y_test, y_pred, average='macro')),
                             "weighted_f1": float(f1_score(y_test, y_pred, average='weighted')),
                             "confusion_matrix": confusion_matrix(y_test, y_pred)
                         }
-                   
-                    case 'regression':  # Regression
-                        st.session_state.RF_test_metrics = {
+
+                    case 'regression':
+                        st.session_state.XGB_test_metrics = {
                             "mse": float(mean_squared_error(y_test, y_pred)),
                             "rmse": float(math.sqrt(mean_squared_error(y_test, y_pred))),
                             "mae": float(mean_absolute_error(y_test, y_pred)),
                             "r2": float(r2_score(y_test, y_pred))
                         }
-                    
-                st.session_state.RF_tested = True
-                st.session_state.RF_to_test = False  # we computed once; keep display alive via RF_tested
 
-        # ------------------------ Step 3: Testing (Display) ------------------------
-        if st.session_state.RF_tested is True:
+                st.session_state.XGB_tested = True
+                st.session_state.XGB_to_test = False
+
+        if st.session_state.XGB_tested is True:
             match st.session_state.problem_type:
-                case 'classification_binary':  # Binary Classification metrics and plots 
+                case 'classification_binary':
                     st.markdown("")
                     st.markdown("#### 📊 Key Metrics")
                     col1, col2, col3, col4 = st.columns(4)
-                    col1.metric("Accuracy", f"{st.session_state.RF_test_metrics['accuracy']:.3f}")
-                    col2.metric("Precision", f"{st.session_state.RF_test_metrics['precision']:.3f}")
-                    col3.metric("Recall", f"{st.session_state.RF_test_metrics['recall']:.3f}")
-                    col4.metric("F1-score", f"{st.session_state.RF_test_metrics['f1']:.3f}")
+                    col1.metric("Accuracy", f"{st.session_state.XGB_test_metrics['accuracy']:.3f}")
+                    col2.metric("Precision", f"{st.session_state.XGB_test_metrics['precision']:.3f}")
+                    col3.metric("Recall", f"{st.session_state.XGB_test_metrics['recall']:.3f}")
+                    col4.metric("F1-score", f"{st.session_state.XGB_test_metrics['f1']:.3f}")
 
-                    # Confusion matrix
                     st.markdown("")
                     st.markdown("#### 🧩 Confusion Matrix")
                     fig, ax = plt.subplots(figsize=(4.2, 3.6))
                     sns.heatmap(
-                        st.session_state.RF_test_metrics["confusion_matrix"],
+                        st.session_state.XGB_test_metrics["confusion_matrix"],
                         annot=True, fmt='d', cmap='Blues', ax=ax, cbar=False
                     )
                     ax.set_xlabel('Predicted')
@@ -301,15 +293,14 @@ if st.session_state.confirmed:
                     fig.tight_layout()
                     show_centered_matplotlib(fig)
 
-                    # ROC and PR curves
                     st.markdown("")
                     st.markdown("#### 📈 AUC Analysis")
-                    y_test = st.session_state.RF_y_test
-                    y_proba = st.session_state.RF_y_proba
+                    y_test = st.session_state.XGB_y_test
+                    y_proba = st.session_state.XGB_y_proba
                     curve_type = st.radio(
                         "Select curve type:",
                         ['ROC Curve', 'Precision-Recall Curve'],
-                        key="rf_auc_curve_type",
+                        key="xgb_auc_curve_type",
                         horizontal=True
                     )
 
@@ -325,7 +316,7 @@ if st.session_state.confirmed:
                         ax.legend()
                         fig.tight_layout()
                         show_centered_matplotlib(fig)
-                        
+
                     else:
                         precisions, recalls, _ = precision_recall_curve(y_test, y_proba)
                         pr_auc = auc(recalls, precisions)
@@ -338,20 +329,19 @@ if st.session_state.confirmed:
                         fig.tight_layout()
                         show_centered_matplotlib(fig)
 
-                case 'classification_multi':  # Multiclass classification
+                case 'classification_multi':
                     st.markdown("")
                     st.markdown("#### 📊 Key Metrics")
                     col1, col2, col3 = st.columns(3)
-                    col1.metric("Accuracy", f"{st.session_state.RF_test_metrics['accuracy']:.3f}")
-                    col2.metric("Macro F1", f"{st.session_state.RF_test_metrics['macro_f1']:.3f}")
-                    col3.metric("Weighted F1", f"{st.session_state.RF_test_metrics['weighted_f1']:.3f}")
+                    col1.metric("Accuracy", f"{st.session_state.XGB_test_metrics['accuracy']:.3f}")
+                    col2.metric("Macro F1", f"{st.session_state.XGB_test_metrics['macro_f1']:.3f}")
+                    col3.metric("Weighted F1", f"{st.session_state.XGB_test_metrics['weighted_f1']:.3f}")
 
-                    # Confusion matrix
                     st.markdown("")
                     st.markdown("#### 🧩 Confusion Matrix")
                     fig, ax = plt.subplots(figsize=(10, 8))
                     sns.heatmap(
-                        st.session_state.RF_test_metrics["confusion_matrix"],
+                        st.session_state.XGB_test_metrics["confusion_matrix"],
                         annot=True, fmt='d', cmap='Blues', ax=ax
                     )
                     ax.set_xlabel('Predicted')
@@ -359,14 +349,10 @@ if st.session_state.confirmed:
                     fig.tight_layout()
                     show_centered_matplotlib(fig)
 
-                    # Classification Report
                     st.markdown("")
                     st.markdown("#### 📑 Classification Report")
                     report_dict = classification_report(y_test, y_pred, output_dict=True)
-                    # Convert the dictionary to a DataFrame
                     report_df = pd.DataFrame(report_dict).transpose()
-                    # The final row contains metrics for accuracy, macro avg, and weighted avg.
-                    # The `support` column is not applicable to these rows, so we can clean it up.
                     report_df['support'] = report_df['support'].fillna('')
                     styled_df = report_df.style.format(
                         formatter={
@@ -378,22 +364,20 @@ if st.session_state.confirmed:
                             'support': '{:.2f}',
                         }
                     ).background_gradient(cmap='Blues', subset=['precision', 'recall', 'f1-score'])
-                    # Display the formatted DataFrame
                     st.dataframe(styled_df, use_container_width=True)
 
-                case 'regression':  # Regression
+                case 'regression':
                     st.markdown("")
                     st.markdown("#### 📊 Regression Metrics")
                     col1, col2, col3, col4 = st.columns(4)
-                    col1.metric("MSE", f"{st.session_state.RF_test_metrics['mse']:.3f}")
-                    col2.metric("RMSE", f"{st.session_state.RF_test_metrics['rmse']:.3f}")
-                    col3.metric("MAE", f"{st.session_state.RF_test_metrics['mae']:.3f}")
-                    col4.metric("R²", f"{st.session_state.RF_test_metrics['r2']:.3f}")
+                    col1.metric("MSE", f"{st.session_state.XGB_test_metrics['mse']:.3f}")
+                    col2.metric("RMSE", f"{st.session_state.XGB_test_metrics['rmse']:.3f}")
+                    col3.metric("MAE", f"{st.session_state.XGB_test_metrics['mae']:.3f}")
+                    col4.metric("R²", f"{st.session_state.XGB_test_metrics['r2']:.3f}")
 
-                    y_test = st.session_state.RF_y_test
-                    y_pred = st.session_state.RF_y_pred
-                    
-                    # Actual vs Predicted Plot
+                    y_test = st.session_state.XGB_y_test
+                    y_pred = st.session_state.XGB_y_pred
+
                     st.markdown("")
                     st.markdown("#### 📈 Actual vs Predicted Values")
                     fig, ax = plt.subplots(figsize=(4.2, 3.6))
@@ -404,7 +388,6 @@ if st.session_state.confirmed:
                     fig.tight_layout()
                     show_centered_matplotlib(fig)
 
-                    # Residuals Plot
                     st.markdown("")
                     st.markdown("#### 📊 Residuals Plot")
                     residuals = y_test - y_pred
