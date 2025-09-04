@@ -249,3 +249,44 @@ def generate_model_formula_latex(y: pd.Series, X: pd.DataFrame, model_type: str,
         formula = r'Invalid Model Type'
     
     return formula
+
+
+
+def show_home_page(background_image_path):
+    """
+    Displays the home page with a background image, title, description, and a button to proceed.
+
+    Args:
+        background_image_path (str): The path to the background image.
+    """
+    # NOTE: The user should provide the actual path to the background image.
+    # For now, we'll use a placeholder.
+    # Example: set_background('assets/background.png')
+
+    st.markdown(
+        f"""
+         <style>
+         .stApp {{
+             background-image: url("{background_image_path}");
+             background-attachment: fixed;
+             background-size: cover
+         }}
+         .bottom-right-button {{
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+         }}
+         </style>
+         """,
+        unsafe_allow_html=True
+    )
+
+    st.title("Dataset analysis playground")
+    st.write("This application helps you analyze your dataset. You can clean your data, visualize it, and train machine learning models.")
+
+    # "Let's go" button in the bottom right
+    st.markdown('<div class="bottom-right-button">', unsafe_allow_html=True)
+    if st.button("Let's go!"):
+        st.session_state.home_page_complete = True
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
