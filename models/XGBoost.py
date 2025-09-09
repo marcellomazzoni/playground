@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from src.util import show_centered_matplotlib
+from src.util import show_centered_plot
 import matplotlib.pyplot as plt
 import seaborn as sns
 import math
@@ -45,7 +45,7 @@ if 'XGB_first_entered' not in st.session_state:
 
 # ------------------------ UI & Param Capture ------------------------
 if st.session_state.confirmed:
-    dataframe = st.session_state['dataframe']
+    dataframe = st.session_state['ml_dataset']
     target = st.session_state['target']
     first_time = st.session_state.XGB_first_entered
 
@@ -291,7 +291,7 @@ if st.session_state.confirmed:
                     ax.set_xlabel('Predicted')
                     ax.set_ylabel('True')
                     fig.tight_layout()
-                    show_centered_matplotlib(fig)
+                    show_centered_plot(fig)
 
                     st.markdown("")
                     st.markdown("#### 📈 AUC Analysis")
@@ -315,7 +315,7 @@ if st.session_state.confirmed:
                         ax.set_title('ROC Curve')
                         ax.legend()
                         fig.tight_layout()
-                        show_centered_matplotlib(fig)
+                        show_centered_plot(fig)
 
                     else:
                         precisions, recalls, _ = precision_recall_curve(y_test, y_proba)
@@ -327,7 +327,7 @@ if st.session_state.confirmed:
                         ax.set_title('Precision-Recall Curve')
                         ax.legend()
                         fig.tight_layout()
-                        show_centered_matplotlib(fig)
+                        show_centered_plot(fig)
 
                 case 'classification_multi':
                     st.markdown("")
@@ -347,7 +347,7 @@ if st.session_state.confirmed:
                     ax.set_xlabel('Predicted')
                     ax.set_ylabel('True')
                     fig.tight_layout()
-                    show_centered_matplotlib(fig)
+                    show_centered_plot(fig)
 
                     st.markdown("")
                     st.markdown("#### 📑 Classification Report")
@@ -386,7 +386,7 @@ if st.session_state.confirmed:
                     ax.set_xlabel('Actual Values')
                     ax.set_ylabel('Predicted Values')
                     fig.tight_layout()
-                    show_centered_matplotlib(fig)
+                    show_centered_plot(fig)
 
                     st.markdown("")
                     st.markdown("#### 📊 Residuals Plot")
@@ -397,4 +397,4 @@ if st.session_state.confirmed:
                     ax.set_xlabel('Predicted Values')
                     ax.set_ylabel('Residuals')
                     fig.tight_layout()
-                    show_centered_matplotlib(fig)
+                    show_centered_plot(fig)

@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from src.util import show_centered_matplotlib
+from src.util import show_centered_plot
 import matplotlib.pyplot as plt
 import seaborn as sns
 import math
@@ -40,7 +40,7 @@ if 'LM_first_entered' not in st.session_state:
 
 # ------------------------ UI & Param Capture ------------------------
 if st.session_state.confirmed:
-    dataframe = st.session_state['dataframe']
+    dataframe = st.session_state['ml_dataset']
     target = st.session_state['target']
     first_time = st.session_state.LM_first_entered
     
@@ -260,7 +260,7 @@ if st.session_state.confirmed:
             ax.set_xlabel('Actual Values')
             ax.set_ylabel('Predicted Values')
             fig.tight_layout()
-            show_centered_matplotlib(fig)
+            show_centered_plot(fig)
 
             st.markdown("")
             st.markdown("#### 📊 Residuals Plot")
@@ -271,4 +271,4 @@ if st.session_state.confirmed:
             ax.set_xlabel('Predicted Values')
             ax.set_ylabel('Residuals')
             fig.tight_layout()
-            show_centered_matplotlib(fig)
+            show_centered_plot(fig)

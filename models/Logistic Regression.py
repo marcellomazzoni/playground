@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from src.util import show_centered_matplotlib
+from src.util import show_centered_plot
 import matplotlib.pyplot as plt
 import seaborn as sns
 import math
@@ -45,7 +45,7 @@ if 'LR_first_entered' not in st.session_state:
 
 # ------------------------ UI & Param Capture ------------------------
 if st.session_state.confirmed:
-    dataframe = st.session_state['dataframe']
+    dataframe = st.session_state['ml_dataset']
     target = st.session_state['target']
     first_time = st.session_state.LR_first_entered
     
@@ -69,7 +69,7 @@ if st.session_state.confirmed:
     st.sidebar.markdown('---')
     C = st.sidebar.multiselect('C', [0.1, 1, 10, 100], default=[1], accept_new_options=True, max_selections=4)
     penalty = st.sidebar.multiselect('penalty', ['l1', 'l2', 'elasticnet', 'none'], default=['l2'])
-    solver = st.sidebar.multiselect('solver', ['newton-cg', 'lbfgs', 'liblinear', 'sag', 'saga'], default=['lbfgs'])
+    solver = st.sidebar.multiselect('solver', ['newton-cholesky', 'newton-cg', 'lbfgs', 'liblinear', 'sag', 'saga'], default=['lbfgs'])
     st.sidebar.markdown('---')
     seed = st.sidebar.number_input('Random State (seed)', min_value=0, max_value=2_147_483_647, value=42, step=1)
 
@@ -154,59 +154,7 @@ if st.session_state.confirmed:
                         'penalty': compatible_penalties,
                         'C': C_values
                     })
-
-            if 'lbfgs' in selected_solvers:
-                # Separate 'none' penalty to avoid redundant C values
-                regularized_penalties = [p for p in converted_penalties if p in ['l2']]
-                none_penalty = [p for p in converted_penalties if p is None]
-
-                if regularized_penalties:
-                    param_grid.append({
-                        'solver': ['lbfgs'],
-                        'penalty': regularized_penalties,
-                        'C': C_values
-                    })
-                if none_penalty:
-                    param_grid.append({
-                        'solver': ['lbfgs'],
-                        'penalty': none_penalty,
-                        'C': [1.0]  # Use a single arbitrary value for C
-                    })
-
-            if 'newton-cg' in selected_solvers:
-                regularized_penalties = [p for p in converted_penalties if p in ['l2']]
-                none_penalty = [p for p in converted_penalties if p is None]
-                
-                if regularized_penalties:
-                    param_grid.append({
-                        'solver': ['newton-cg'],
-                        'penalty': regularized_penalties,
-                        'C': C_values
-                    })
-                if none_penalty:
-                    param_grid.append({
-                        'solver': ['newton-cg'],
-                        'penalty': none_penalty,
-                        'C': [1.0]
-                    })
-
-            if 'sag' in selected_solvers:
-                regularized_penalties = [p for p in converted_penalties if p in ['l2']]
-                none_penalty = [p for p in converted_penalties if p is None]
-
-                if regularized_penalties:
-                    param_grid.append({
-                        'solver': ['sag'],
-                        'penalty': regularized_penalties,
-                        'C': C_values
-                    })
-                if none_penalty:
-                    param_grid.append({
-                        'solver': ['sag'],
-                        'penalty': none_penalty,
-                        'C': [1.0]
-                    })
-
+                    
             if 'saga' in selected_solvers:
                 regularized_penalties = [p for p in converted_penalties if p in ['l1', 'l2']]
                 elasticnet_penalty = [p for p in converted_penalties if p == 'elasticnet']
@@ -231,6 +179,24 @@ if st.session_state.confirmed:
                         'penalty': none_penalty,
                         'C': [1.0]
                     })
+                
+                
+            for solver in ['lbfgs', 'newton-cg', 'sag', 'newton-cholesky']:
+                if solver in selected_solvers:
+                    for penalty in converted_penalties:
+                        if penalty == 'l2':
+                            Cs = C_values
+                        elif penalty is None:  # no regularization → C ignored
+                            Cs = [1.0]  # more explicit than [1.0]
+                        else:
+                            continue  # skip unsupported penalties for this solver
+
+                        param_grid.append({
+                            'solver': [solver],
+                            'penalty': [penalty],
+                            'C': Cs,
+                        })
+            
                     
             if are_params_empty(param_grid, necessary_params=['C'], not_necessary_params=None):
                 st.stop()
@@ -354,7 +320,7 @@ if st.session_state.confirmed:
                     ax.set_xlabel('Predicted')
                     ax.set_ylabel('True')
                     fig.tight_layout()
-                    show_centered_matplotlib(fig)
+                    show_centered_plot(fig)
 
                     st.markdown("")
                     st.markdown("#### 📈 AUC Analysis")
@@ -378,7 +344,7 @@ if st.session_state.confirmed:
                         ax.set_title('ROC Curve')
                         ax.legend()
                         fig.tight_layout()
-                        show_centered_matplotlib(fig)
+                        show_centered_plot(fig)
 
                     else:
                         precisions, recalls, _ = precision_recall_curve(y_test, y_proba)
@@ -390,7 +356,7 @@ if st.session_state.confirmed:
                         ax.set_title('Precision-Recall Curve')
                         ax.legend()
                         fig.tight_layout()
-                        show_centered_matplotlib(fig)
+                        show_centered_plot(fig)
 
                 case 'classification_multi':
                     st.markdown("")
@@ -410,7 +376,7 @@ if st.session_state.confirmed:
                     ax.set_xlabel('Predicted')
                     ax.set_ylabel('True')
                     fig.tight_layout()
-                    show_centered_matplotlib(fig)
+                    show_centered_plot(fig)
 
                     st.markdown("")
                     st.markdown("#### 📑 Classification Report")

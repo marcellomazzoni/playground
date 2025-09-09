@@ -1,13 +1,54 @@
 import streamlit as st 
 import pandas as pd
-
+from streamlit_modal import Modal
 # ========================= LLM availability + dynamic radio =========================
 # Paste this somewhere near your other utils (before you render the radios).
 # It detects whether an Ollama server is reachable and whether the requested model is installed.
 # Then it builds a radio whose options include "Ask LLM" ONLY when available.
+def choose_llm():
+    # --- Modal initialization ---
+    modal = Modal("⚙️ Settings", key="settings_modal", max_width=600)
 
-import os
-import streamlit as st
+    # Floating button
+    if st.button("⚙️", key="open_settings", help="Open settings"):
+        modal.open()
+
+    # Session state to hold config
+    if "llm_choice" not in st.session_state:
+        st.session_state.llm_choice = "Ollama"
+
+    if "gemini_api_key" not in st.session_state:
+        st.session_state.gemini_api_key = ""
+
+    # --- Modal content ---
+    if modal.is_open():
+        with modal.container():
+            st.markdown("### Choose your LLM backend")
+
+            # Radio buttons for model choice
+            choice = st.radio(
+                "Select engine:",
+                ["Ollama", "Gemini"],
+                index=0 if st.session_state.llm_choice == "Ollama" else 1,
+                key="llm_choice_radio"
+            )
+            st.session_state.llm_choice = choice
+
+            # If Gemini is selected, ask for API key
+            if choice == "Gemini":
+                st.session_state.gemini_api_key = st.text_input(
+                    "Enter Gemini API Key",
+                    type="password",
+                    value=st.session_state.gemini_api_key,
+                    placeholder="sk-...",
+                    help="Paste your Gemini API key here"
+                )
+
+            # Save / Close
+            if st.button("Save & Close"):
+                modal.close()
+                st.success(f"Settings updated → Using {st.session_state.llm_choice}")
+
 
 def available_llm(model_name: str = "qwen2.5-coder:3b",
                   url: str = "http://localhost:11434") -> bool:
@@ -128,11 +169,71 @@ def action_radio_for_column(col: str,
 # ========================= Usage example =========================
 
 
-def show_centered_matplotlib(fig, width_ratio=2.4):
-    # left : middle : right ratios — tweak width_ratio to change middle width
-    left_ , mid, right_ = st.columns([1, width_ratio, 1])
+def show_centered_plot(plot_obj, width_ratio=2.4, plot_type='pyplot'):
+    """
+    Display a plot centered in streamlit with configurable width.
+    
+    Args:
+        plot_obj: The plot object (matplotlib figure, plotly figure, etc.)
+        width_ratio (float): Ratio of middle column width to side columns
+        plot_type (str): Type of plot ('pyplot', 'plotly', 'matplotlib')
+    """
+    left_, mid, right_ = st.columns([1, width_ratio, 1])
     with mid:
-        st.pyplot(fig, use_container_width=True)
+        match plot_type.lower():
+            case 'pyplot' | 'matplotlib':
+                st.pyplot(plot_obj, use_container_width=True)
+            case 'plotly':
+                st.plotly_chart(plot_obj, use_container_width=True)
+            case _:
+                st.write("Unsupported plot type")
+
+
+def show_plot_and_metrics(plot_obj, width_ratio=2.4, plot_type='pyplot', list_of_metrics = []):
+    """
+    Display a plot centered in streamlit with configurable width.
+    
+    Args:
+        plot_obj: The plot object (matplotlib figure, plotly figure, etc.)
+        width_ratio (float): Ratio of middle column width to side columns
+        plot_type (str): Type of plot ('pyplot', 'plotly', 'matplotlib')
+    """
+    margin_, chart, space_, metrics, margin_ = st.columns([0.5, width_ratio, 0.5, 1,0.2])
+    with chart:
+        match plot_type.lower():
+            case 'pyplot' | 'matplotlib':
+                st.pyplot(plot_obj, use_container_width=True)
+            case 'plotly':
+                st.plotly_chart(plot_obj, use_container_width=True)
+            case _:
+                st.write("Unsupported plot type")
+    with metrics:
+        if list_of_metrics:
+            st.write("**Metrics**")
+            for metric in list_of_metrics:
+                st.metric(label=metric.get('label', 'N/A'), value=metric.get('value', 'N/A'))
+
+        
+
+
+def show_right_plot(plot_obj, width_ratio=2.4, plot_type='pyplot'):
+    """
+    Display a plot centered in streamlit with configurable width.
+    
+    Args:
+        plot_obj: The plot object (matplotlib figure, plotly figure, etc.)
+        width_ratio (float): Ratio of middle column width to side columns
+        plot_type (str): Type of plot ('pyplot', 'plotly', 'matplotlib')
+    """
+    left_, mid_, right = st.columns([1, 1, width_ratio])
+    with right:
+        match plot_type.lower():
+            case 'pyplot' | 'matplotlib':
+                st.pyplot(plot_obj, use_container_width=True)
+            case 'plotly':
+                st.plotly_chart(plot_obj, use_container_width=True)
+            case _:
+                st.write("Unsupported plot type")
         
         
 def debug_cross_val(grid_search):
@@ -193,9 +294,6 @@ def are_params_empty(param_grid, necessary_params=None, not_necessary_params=Non
 
     return False
 
-
-
-
 # FUNCTIONS FOR MODELS EXPLAINABILITY
 
 def generate_model_formula_latex(y: pd.Series, X: pd.DataFrame, model_type: str, model=None):
@@ -249,44 +347,3 @@ def generate_model_formula_latex(y: pd.Series, X: pd.DataFrame, model_type: str,
         formula = r'Invalid Model Type'
     
     return formula
-
-
-
-def show_home_page(background_image_path):
-    """
-    Displays the home page with a background image, title, description, and a button to proceed.
-
-    Args:
-        background_image_path (str): The path to the background image.
-    """
-    # NOTE: The user should provide the actual path to the background image.
-    # For now, we'll use a placeholder.
-    # Example: set_background('assets/background.png')
-
-    st.markdown(
-        f"""
-         <style>
-         .stApp {{
-             background-image: url("{background_image_path}");
-             background-attachment: fixed;
-             background-size: cover
-         }}
-         .bottom-right-button {{
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-         }}
-         </style>
-         """,
-        unsafe_allow_html=True
-    )
-
-    st.title("Dataset analysis playground")
-    st.write("This application helps you analyze your dataset. You can clean your data, visualize it, and train machine learning models.")
-
-    # "Let's go" button in the bottom right
-    st.markdown('<div class="bottom-right-button">', unsafe_allow_html=True)
-    if st.button("Let's go!"):
-        st.session_state.home_page_complete = True
-        st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
