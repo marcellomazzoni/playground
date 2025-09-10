@@ -1,3 +1,20 @@
+# STILL WORK-IN-PROGRESS
+
+If you received this repository link as a portfolio indication, then consider that the application is constantly being updated. 
+Some known issues are:
+*   Major errors on Linear Models (regression), for the CV process that involves Ridge and Lasso as parameters to tune. Currently unusable
+*   Minor bugs in the preprocessing steps
+*   Absence of explainable AI section after training
+*   Absence of multivariate analysis in the variable selection step
+*   No storage of the preprocessing steps for future, consistent, trials
+*   No handling of ML cases outside regression and classification (Time-Series and Unsupervised analysis are next upcoming improvements)
+*   Absence of LLM API configuration without accessing the code:
+   *   The user currently has to access the code to provide a Gemini API Key in the .env file and specify he is using Gemini
+   *   If other providers apart from Google are used, the user has to change a code portion instead of automatically managing it from the settings
+   *   Ollama is being treated as a requirement, while the user may not want to store a local model or install the program at all
+*   UI to be deeply improved and customized
+
+
 # Interactive Machine Learning Pipeline
 
 This is an interactive web application built with Streamlit that allows you to upload your own dataset, perform data cleaning and preprocessing, and train and evaluate various machine learning models without writing any code.
