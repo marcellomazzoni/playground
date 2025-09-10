@@ -1,65 +1,75 @@
-# STILL WORK-IN-PROGRESS
+# Interactive Machine Learning Sandbox
 
-If you received this repository link as a portfolio indication, then consider that the application is constantly being updated. 
-Some known issues are:
-*   Major errors on Linear Models (regression), for the CV process that involves Ridge and Lasso as parameters to tune. Currently unusable
-*   Minor bugs in the preprocessing steps
-*   Absence of explainable AI section after training
-*   Absence of multivariate analysis in the variable selection step
-*   No storage of the preprocessing steps for future, consistent, trials
-*   No handling of ML cases outside regression and classification (Time-Series and Unsupervised analysis are next upcoming improvements)
-*   Absence of LLM API configuration without accessing the code:
-   *   The user currently has to access the code to provide a Gemini API Key in the .env file and specify he is using Gemini
-   *   If other providers apart from Google are used, the user has to change a code portion instead of automatically managing it from the settings
-   *   Ollama is being treated as a requirement, while the user may not want to store a local model or install the program at all
-*   UI to be deeply improved and customized
+This project is an interactive web application built with Streamlit that serves as a playground for machine learning. It allows users to upload their own datasets, perform data cleaning and preprocessing, and train and evaluate various machine learning models without writing any code.
 
+## Project Vision
 
-# Interactive Machine Learning Pipeline
+The goal of this project is to provide a "sandbox" environment for both beginners and experts to quickly iterate on machine learning tasks. Starting from a simple CSV file, the user can go through the entire ML pipeline, from data preparation to model evaluation. This application is designed to be a portfolio piece, showcasing a full-stack machine learning application.
 
-This is an interactive web application built with Streamlit that allows you to upload your own dataset, perform data cleaning and preprocessing, and train and evaluate various machine learning models without writing any code.
+## Current Status & Roadmap
+
+This application is currently under active development. While it is not yet a production-ready tool, it serves as a strong foundation for a powerful and intuitive machine learning platform.
+
+Here are some of the known issues and planned future enhancements:
+
+*   **Linear Models:** The cross-validation process for Ridge and Lasso regression is currently under development and may not be fully functional.
+*   **Preprocessing:** Minor bugs are present in the preprocessing steps.
+*   **Explainable AI (XAI):** An XAI section to interpret model predictions is a high-priority future addition.
+*   **Multivariate Analysis:** The variable selection step will be enhanced with multivariate analysis techniques.
+*   **Pipeline Storage:** The ability to save and reuse preprocessing steps is a planned feature.
+*   **Expanded ML Use Cases:** Support for time-series forecasting and unsupervised learning is on the roadmap.
+*   **LLM Integration:** The configuration of the Large Language Model (LLM) integration will be improved to allow for easier API key management and support for multiple providers.
+*   **UI/UX:** The user interface will be continuously improved for a better user experience.
 
 ## Features
 
 *   **Interactive Data Cleaning**: A user-friendly interface to clean and preprocess your data.
-*   **Multiple Model Support**: Supports a variety of models for both classification and regression tasks, including:
-    *   K-Nearest Neighbors
-    *   Random Forest
-    *   Support Vector Machines (SVM)
-    *   Logistic Regression
-    *   Naive Bayes
-    *   XGBoost
-    *   Linear Models
+*   **Multiple Model Support**: Supports a variety of models for both classification and regression tasks.
 *   **Hyperparameter Tuning**: Use GridSearchCV to find the best hyperparameters for your models.
 *   **Model Evaluation**: Get detailed performance metrics and visualizations for your models.
-*   **LLM Integration**: (Optional) Use a local Large Language Model (LLM) to perform complex data cleaning tasks using natural language.
+*   **LLM Integration**: (Optional) Use a Large Language Model (LLM) to perform complex data cleaning tasks using natural language.
+    *   The application supports both a local LLM via Ollama (default) and API-based models like Gemini.
+    *   To switch to an API-based model, you can change the `connectivity` parameter in the `ask_llm_data_clean` function call within `src/preproc.py`. You will also need to provide your API key in a `.env` file.
 
-## Installation
+## Getting Started
+
+### Prerequisites
+
+*   Python 3.8+
+*   pip
+
+### Installation
 
 1.  **Clone the repository:**
     ```bash
     git clone <repository-url>
     cd <repository-directory>
     ```
-2.  **Install the dependencies:**
+2.  **Create a virtual environment (recommended):**
+    ```bash
+    python -m venv venv
+    source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
+    ```
+3.  **Install the dependencies:**
     ```bash
     pip install -r requirements.txt
     ```
 
-## Usage
+### Running the Application
 
 1.  **Run the Streamlit application:**
     ```bash
     streamlit run app.py
     ```
-2.  The application will open in your web browser.
+2.  The application will open in your default web browser.
 
-### Workflow
+## User Journey
 
-1.  **Upload Data**: On the **Data** page, upload your dataset as a CSV file.
-2.  **Clean Data**: Use the provided tools to clean and preprocess your data. You can handle missing values, outliers, and perform feature engineering.
-3.  **Select Target**: Choose your target variable for the machine learning task.
-4.  **Train Model**: Navigate to one of the model pages from the sidebar to train and evaluate a model. You can tune the hyperparameters in the sidebar and see the results instantly.
+1.  **Upload Data**: Navigate to the **Data** page and upload your dataset in CSV format.
+2.  **Clean and Preprocess**: Use the interactive tools to handle missing values, outliers, and perform other data cleaning tasks.
+3.  **Select Target Variable**: Choose the column you want to predict.
+4.  **Train a Model**: Select a model from the sidebar, tune its hyperparameters, and start the training process.
+5.  **Evaluate Performance**: Analyze the model's performance using the provided metrics and visualizations.
 
 ## Project Structure
 
@@ -67,6 +77,4 @@ This is an interactive web application built with Streamlit that allows you to u
 *   `preprocessing.py`: The Streamlit page for data cleaning and preprocessing.
 *   `models/`: A directory containing the Streamlit pages for each machine learning model.
 *   `src/`: Contains helper modules.
-    *   `util.py`: Utility functions for the Streamlit UI.
-    *   `data_clean.py`: Backend logic for data cleaning operations, including LLM integration.
 *   `requirements.txt`: The list of Python dependencies for the project.
