@@ -169,7 +169,7 @@ def action_radio_for_column(col: str,
 # ========================= Usage example =========================
 
 
-def show_centered_plot(plot_obj, width_ratio=2.4, plot_type='pyplot'):
+def show_centered_plot(plot_obj, width_ratio=2.4, plot_type='pyplot', width=None, height=None):
     """
     Display a plot centered in streamlit with configurable width.
     
@@ -182,9 +182,13 @@ def show_centered_plot(plot_obj, width_ratio=2.4, plot_type='pyplot'):
     with mid:
         match plot_type.lower():
             case 'pyplot' | 'matplotlib':
-                st.pyplot(plot_obj, use_container_width=True)
+                st.pyplot(plot_obj, width=width, height=height)
             case 'plotly':
-                st.plotly_chart(plot_obj, use_container_width=True)
+                if height:
+                    plot_obj.update_layout(height=height)
+                if width:
+                    plot_obj.update_layout(width=width)
+                st.plotly_chart(plot_obj)
             case _:
                 st.write("Unsupported plot type")
 
@@ -213,28 +217,6 @@ def show_plot_and_metrics(plot_obj, width_ratio=2.4, plot_type='pyplot', list_of
             for metric in list_of_metrics:
                 st.metric(label=metric.get('label', 'N/A'), value=metric.get('value', 'N/A'))
 
-        
-
-
-def show_right_plot(plot_obj, width_ratio=2.4, plot_type='pyplot'):
-    """
-    Display a plot centered in streamlit with configurable width.
-    
-    Args:
-        plot_obj: The plot object (matplotlib figure, plotly figure, etc.)
-        width_ratio (float): Ratio of middle column width to side columns
-        plot_type (str): Type of plot ('pyplot', 'plotly', 'matplotlib')
-    """
-    left_, mid_, right = st.columns([1, 1, width_ratio])
-    with right:
-        match plot_type.lower():
-            case 'pyplot' | 'matplotlib':
-                st.pyplot(plot_obj, use_container_width=True)
-            case 'plotly':
-                st.plotly_chart(plot_obj, use_container_width=True)
-            case _:
-                st.write("Unsupported plot type")
-        
         
 def debug_cross_val(grid_search):
     st.markdown("---")

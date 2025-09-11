@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import matplotlib.pyplot as plt
 from google import genai
 from google.genai import types
 from dateutil.parser import parse as dateparse
@@ -10,10 +9,13 @@ import streamlit as st
 import re 
 import time
 import plotly.graph_objects as go
+import plotly.express as px
 from scipy.stats import gaussian_kde
 from sklearn.impute import KNNImputer
-from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.experimental import enable_halving_search_cv
+from sklearn.model_selection import GridSearchCV, HalvingGridSearchCV
 from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 
 from src.util import action_radio_for_column, show_centered_plot, show_plot_and_metrics, get_numeric_x_and_y_from_df
@@ -344,6 +346,7 @@ class Processor(Summarizer):
                     df.drop(columns=drop_vars, inplace=True, errors="ignore")
                     # Keep metadata in sync (recomputed on rerun anyway)
                     st.session_state.last_action_general = f"Dropped variables: {drop_vars}"
+                    st.session_state['feature_importance_df'] = None
                     st.rerun()
                 else:
                     st.warning("No variables selected for dropping.")
@@ -354,6 +357,7 @@ class Processor(Summarizer):
             if st.button("Apply", key="apply_drop_duplicates"):
                 before = len(df)
                 df.drop_duplicates(subset=subset_cols if subset_cols else None, keep="first" if keep_first else False, inplace=True)
+                st.session_state['feature_importance_df'] = None
                 after = len(df)
                 st.session_state.last_action_general = f"Dropped {before - after} duplicate rows"
                 st.rerun()
@@ -374,6 +378,7 @@ class Processor(Summarizer):
                     else:
                         df.rename(columns=proposed, inplace=True)
                         st.session_state.last_action_general = f"Lowercased: {list(proposed.values())}"
+                        st.session_state['feature_importance_df'] = None
                         st.rerun()
 
     def single_actions(self):
@@ -419,7 +424,7 @@ class Processor(Summarizer):
                         else:
                             df.rename(columns={col: new_name}, inplace=True)
                             st.session_state.last_action = f"Renamed {col} to {new_name}"
-                            # st.session_state.var_to_change = ""
+                            st.session_state['feature_importance_df'] = None
                             st.rerun()
 
                 if action == "Manage outliers":
@@ -432,7 +437,7 @@ class Processor(Summarizer):
                             upper = q3 + 1.5 * iqr
                             df[col] = ser.clip(lower, upper)
                             st.session_state.last_action = f"{col} outliers capped to 1.5*IQR"
-                            # st.session_state.var_to_change = ""
+                            st.session_state['feature_importance_df'] = None
                             st.rerun()
                     else:
                         lower_upper = st.slider(
@@ -447,6 +452,7 @@ class Processor(Summarizer):
                             upper = ser.quantile(lower_upper[1]/100)
                             df[col] = ser.clip(lower, upper)
                             st.session_state.last_action = f"{col} outliers capped at percentiles {lower}-{upper}"
+                            st.session_state['feature_importance_df'] = None
                             st.rerun()
 
                 elif action == "Manage missing values":
@@ -456,12 +462,14 @@ class Processor(Summarizer):
                         if st.button("Apply", key=f"apply_missing_mean_{col}"):
                             df[col] = ser.fillna(ser.mean())
                             st.session_state.last_action = f"Mean imputation on {col}"
+                            st.session_state['feature_importance_df'] = None
                             st.rerun()
                         
                     elif imp_method == "Median":
                         if st.button("Apply", key=f"apply_missing_median_{col}"):
                             df[col] = ser.fillna(ser.median())
                             st.session_state.last_action = f"Median imputation on {col}"
+                            st.session_state['feature_importance_df'] = None
                             st.rerun()
                         
                     elif imp_method == "KNN":
@@ -533,6 +541,7 @@ class Processor(Summarizer):
                                         f"KNN imputation on '{col}': filled {n_filled} missing value(s) "
                                         f"using {len(features)} feature(s), k={k_effective}."
                                     )
+                                    st.session_state['feature_importance_df'] = None
                                     st.rerun()
 
                 elif action == "Bucketize (discretize)":
@@ -544,6 +553,7 @@ class Processor(Summarizer):
                         else:
                             df[col] = pd.cut(ser, n_buckets, labels=False, duplicates="drop")
                         st.session_state.last_action = f"Bucketing applied to {col}, now in {n_buckets} groups"
+                        st.session_state['feature_importance_df'] = None
                         st.rerun()
 
                 elif action == "Ask LLM":
@@ -627,6 +637,7 @@ class Processor(Summarizer):
                                         st.session_state.last_action = f"Added transformed data as '{new_col_name}'"
                                         st.session_state.llm_new_series = None
                                         st.session_state.llm_code = None
+                                        st.session_state['feature_importance_df'] = None
                                         st.rerun()
                                         
                             elif choice == "Replace Original":
@@ -635,6 +646,7 @@ class Processor(Summarizer):
                                     st.session_state.last_action = f"Replaced '{col}' with transformed data"
                                     st.session_state.llm_new_series = None
                                     st.session_state.llm_code = None
+                                    st.session_state['feature_importance_df'] = None
                                     st.rerun()
                                     
                             elif choice == "Reject Changes":
@@ -656,6 +668,7 @@ class Processor(Summarizer):
                         else:
                             df.rename(columns={col: new_name}, inplace=True)
                             st.session_state.last_action = f"Renamed {col} to {new_name}"
+                            st.session_state['feature_importance_df'] = None
                             st.rerun()
 
                 if action == "Impute Missing Values":
@@ -664,6 +677,7 @@ class Processor(Summarizer):
                         mode = ser.mode().iloc[0] if not ser.mode().empty else None
                         df[col] = ser.fillna(mode)
                         st.session_state.last_action = f"Mode imputation applied to {col}"
+                        st.session_state['feature_importance_df'] = None
                         st.rerun()
 
                 elif action == "Label Encoding":
@@ -672,17 +686,19 @@ class Processor(Summarizer):
                         mapping = {v: i for i, v in enumerate(uniques)}
                         df[col] = ser.map(mapping)
                         st.session_state.last_action = f"Label encoding applied to {col}"
+                        st.session_state['feature_importance_df'] = None
                         st.rerun()
 
                 elif action == "One-hot Encoding":
                     dummies_preview = pd.get_dummies(ser, prefix=col)
                     st.markdown("**Preview of columns that would be created:**")
-                    st.write(", ".join(map(str, dummies_preview.columns)))
+                    st.write(",  ".join(map(str, dummies_preview.columns)))
                     if st.button("Apply", key=f"apply_ohe_{col}"):
                         df.drop(columns=[col], inplace=True)
                         for new_col in dummies_preview.columns:
                             df[new_col] = dummies_preview[new_col]
                         st.session_state.last_action = f"One-hot encoding applied to {col}"
+                        st.session_state['feature_importance_df'] = None
                         st.rerun()
                         
                 elif action == "Ask LLM":
@@ -719,6 +735,7 @@ class Processor(Summarizer):
 
                     df[col] = ser.map(_to_bin)
                     st.session_state.last_action = f"Boolean conversion applied to {col}"
+                    st.session_state['feature_importance_df'] = None
                     st.rerun()
 
             # -------------------- Descriptive --------------------
@@ -757,6 +774,7 @@ class Processor(Summarizer):
                         st.session_state.last_action = f"Datetime formatted/parsed for {col}"
                     except Exception as e:
                         st.error(f"Could not convert: {e}")
+                    st.session_state['feature_importance_df'] = None
                     st.rerun()
                                         
 class Selector(Summarizer):
@@ -1034,77 +1052,182 @@ class Selector(Summarizer):
             st.warning("Please select a target variable first")
             return
         
-        if st.session_state['feature_importance_df'] is None:
-            df = self.df
-            target = st.session_state["target"]
-            X, y = get_numeric_x_and_y_from_df(dataframe = df, target =  target)
-            scaler = StandardScaler()
-            X_scaled = scaler.fit_transform(X)
-
-            t = self.autotype_dict[target]            
-                # Simple mapping based on your auto types
-            type_to_problem = {
-                    "Continuous":  "regression",
-                    "Binary":      "classification_binary",
-                    "Categorical": "classification_multi",
-                    "Boolean":     "classification",
-                }
-            detected = type_to_problem.get(t)
-
+        if st.checkbox("Show Variable Importance", key="toggle_show_var_imp"):
             with st.spinner("Getting variable importance via ML…"):
-                # CLASSIFICATION
-                if detected in ["classification_multi", "classification_binary"]:
-                    rf = RandomForestClassifier(random_state=42)
-                    param_grid = [{
-                        'n_estimators': [10,30,60,100,200],
-                        'max_depth': [5, 10, 20, 30],
-                        'min_samples_split': [2, 5, 10]
-                    }]
-                    
-                    grid_search = GridSearchCV(
-                        rf,
-                        param_grid, 
-                        cv=5,
-                        scoring='accuracy',
-                        return_train_score=False  # keep it lean; set True if you want to display train CV too
-                    )
-                    grid_search.fit(X_scaled, y)
-                    # HEre is the variable importance
-                    importances = grid_search.best_estimator_.feature_importances_
-                    importance_df = pd.DataFrame({
-                        'Feature': X.columns,
-                        'Importance': importances
-                    }).sort_values(by='Importance', ascending=False)
-                        
-                # REGRESSION
-                elif detected == "regression":
-                    rf = RandomForestRegressor(random_state=42)
-                    param_grid = [{
-                        'n_estimators': [10,30,60,100,200],
-                        'max_depth': [5, 10, 20, 30],
-                        'min_samples_split': [2, 5, 10]
-                    }]
-                    
-                    grid_search = GridSearchCV(
-                        rf,
-                        param_grid,
-                        cv=5,
-                        scoring=['neg_mean_absolute_error','neg_root_mean_squared_error','r2'],
-                        refit='neg_root_mean_squared_error',
-                        return_train_score=False
-                    )
-                    grid_search.fit(X_scaled, y)
+                if st.session_state['feature_importance_df'] is None:
+                    df = self.df
+                    target = st.session_state["target"]
+                    X, y = get_numeric_x_and_y_from_df(dataframe = df, target =  target)
+                    scaler = StandardScaler()
+                    X_scaled = scaler.fit_transform(X)
 
-                    # HEre is the variable importance
-                    importances = grid_search.best_estimator_.feature_importances_
-                    importance_df = pd.DataFrame({
-                        'Feature': X.columns,
-                        'Importance': importances
-                    }).sort_values(by='Importance', ascending=False)
+                    t = self.autotype_dict[target]            
+                    # Simple mapping based on your auto types
+                    type_to_problem = {
+                            "Continuous":  "regression",
+                            "Binary":      "classification_binary",
+                            "Categorical": "classification_multi",
+                            "Boolean":     "classification",
+                        }
+                    detected = type_to_problem.get(t)
+
+                    # CLASSIFICATION
+                    if detected in ["classification_multi", "classification_binary"]:
+                        rf = RandomForestClassifier(random_state=42)
+                        param_grid = [{
+                            'n_estimators': [10,30,60,100,200],
+                            'max_depth': [5, 10, 20, 30],
+                            'min_samples_split': [2, 5, 10]
+                        }]
+                        
+                        grid_search = GridSearchCV(
+                            rf,
+                            param_grid, 
+                            cv=5,
+                            scoring='accuracy',
+                            return_train_score=False  # keep it lean; set True if you want to display train CV too
+                        )
+                        grid_search.fit(X_scaled, y)
+                        # HEre is the variable importance
+                        importances = grid_search.best_estimator_.feature_importances_
+                        importance_df = pd.DataFrame({
+                            'Feature': X.columns,
+                            'Importance': importances
+                        }).sort_values(by='Importance', ascending=False)
+                            
+                    # REGRESSION
+                    elif detected == "regression":
+                        rf = RandomForestRegressor(random_state=42)
+                        param_grid = [{
+                            'n_estimators': [10,30,60,100,200],
+                            'max_depth': [5, 10, 20, 30],
+                            'min_samples_split': [2, 5, 10]
+                        }]
+                        
+                        grid_search = HalvingGridSearchCV(
+                            rf,
+                            param_grid,
+                            cv=5,
+                            scoring=['neg_mean_absolute_error','neg_root_mean_squared_error','r2'],
+                            refit='neg_root_mean_squared_error',
+                            return_train_score=False
+                        )
+                        grid_search.fit(X_scaled, y)
+
+                        # HEre is the variable importance
+                        importances = grid_search.best_estimator_.feature_importances_
+                        importance_df = pd.DataFrame({
+                            'Feature': X.columns,
+                            'Importance': importances
+                        }).sort_values(by='Importance', ascending=False)
+                        
+                        st.session_state['feature_importance_df'] = importance_df
+
+                else: # already computed - cache
+                    importance_df = st.session_state['feature_importance_df']
+                    # Here is the horizontal bar chart of variable importance
+
+                fig = px.bar(
+                    title="Feature Importance from Random Forest - optimizing for predictive power",
+                    data_frame = importance_df.sort_values(by='Importance', ascending=True),  # reverse order so largest is on top
+                    x='Importance',
+                    y='Feature',
+                    orientation='h',
+                    text='Importance',  # Add value labels
+                )
+                fig.update_traces(texttemplate='%{text:.2f}', textposition='inside')  # Format and position labels
+                fig.update_layout(
+                    yaxis=dict(
+                        categoryorder='total ascending',  # ensures largest is at top
+                        tickfont=dict(size=18)           # make y labels bigger
+                    ),
+                    xaxis=dict(tickfont=dict(size=16)),  # make x labels bigger
+                    bargap=0.5                           # make bars thinner
+                )
+                                    
+            show_centered_plot(fig, width_ratio=5, plot_type='plotly')        
+
+        if st.checkbox("Show 3D PCA Plot", key="toggle_show_3d_pca"):
+            with st.spinner("Getting variable importance via ML…"):
+                if "target" not in st.session_state or st.session_state["target"] is None:
+                    st.warning("Please select a target variable first")
+                    return
+                df = self.df
+                target = st.session_state["target"]
+
+                X, y = get_numeric_x_and_y_from_df(dataframe = df, target =  target)
+
+                if X.shape[1] < 3: # Sanity check
+                    st.warning("Need at least 3 numeric features for 3D PCA plot.")
+                    return
                 
-            st.session_state['feature_importance_df'] = importance_df
-            st.markdown("**Feature Importance from Random Forest**")
-            st.dataframe(importance_df, use_container_width=True, hide_index=True)
+                t = self.autotype_dict[target]            
+                    # Simple mapping based on your auto types
+                type_to_problem = {
+                        "Continuous":  "regression",
+                        "Binary":      "classification_binary",
+                        "Categorical": "classification_multi",
+                        "Boolean":     "classification",
+                    }
+                detected = type_to_problem.get(t)
+            
+
+                X_scaled = StandardScaler().fit_transform(X)
+                pca = PCA(n_components=3)
+                pca_result = pca.fit_transform(X_scaled)
+
+                df_pca = pd.DataFrame(pca_result, columns=['PC1', 'PC2', 'PC3'])
+                df_pca['target'] = y
+
+                # Get loadings (components)
+                loadings = pca.components_.T  # shape: (n_features, 3)
+                loadings_scaled = pca.components_.T * np.sqrt(pca.explained_variance_)
+                feature_names = X.columns
+
+                # Create scatter plot for points
+                fig = px.scatter_3d(
+                    df_pca,
+                    x='PC1',
+                    y='PC2',
+                    z='PC3',
+                    color='target' if detected != "regression" else None,
+                    title='3D PCA scores Plot' + (" Colored by Target" if detected != "regression" else "")
+                )
+
+                # Add vectors for each regressor
+                for i, feature in enumerate(feature_names):
+                    fig.add_trace(
+                        go.Scatter3d(
+                            x=[0, loadings_scaled[i, 0]], #*3],  # scale for visibility
+                            y=[0, loadings_scaled[i, 1]], #*3],
+                            z=[0, loadings_scaled[i, 2]], #*3],
+                            mode='lines+text',
+                            line=dict(color='red', width=4),
+                            text=[None, feature],
+                            textposition='top center',
+                            name=feature,
+                            showlegend=False
+                        )
+                    )
+            cols = st.columns([2, 1])
+            with cols[0]:
+                show_centered_plot(fig, width_ratio=3, plot_type='plotly', height=650)
+                # df_loadings = pd.DataFrame(loadings, index=X.columns, columns=['PC1', 'PC2', 'PC3'])
+                # st.dataframe(df_loadings, width='content')
+            # Loadings table (variables x principal components)
+            with cols[1]:
+                st.markdown("**PCA Raw Loadings**")
+                df_loadings = pd.DataFrame(loadings, index=X.columns, columns=['PC1', 'PC2', 'PC3'])
+                st.dataframe(df_loadings, width='content')
+
+
+
+            
+
+
+
+
+
 
 
 
