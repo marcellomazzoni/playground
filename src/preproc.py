@@ -12,7 +12,11 @@ import time
 import plotly.graph_objects as go
 from scipy.stats import gaussian_kde
 from sklearn.impute import KNNImputer
-from src.util import action_radio_for_column, show_centered_plot, show_plot_and_metrics
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+
+from src.util import action_radio_for_column, show_centered_plot, show_plot_and_metrics, get_numeric_x_and_y_from_df
 
 # ----------------------------------------------------------------------------
 # Helper: LLM code generator for column-wise transformations
@@ -758,7 +762,7 @@ class Processor(Summarizer):
 class Selector(Summarizer):
     def __init__(self, df: pd.DataFrame):
        super().__init__(df)
-    
+
     def target_and_problem_selection(self):
         
         df = self.df
@@ -1017,17 +1021,92 @@ class Selector(Summarizer):
                                                 default=x_df.columns[:len(x_df.columns)])
             fig = sns.pairplot(x_df[selected_vars], diag_kind="hist", plot_kws={"s": 20, "alpha": 0.7})
             st.pyplot(fig)
-            
-
-            
 
         # --- Custom Bivariate Section ---
-        st.markdown("**Custom Bivariate Plot**")
-
+        # st.markdown("**Custom Bivariate Plot**")
             # Continuous-Continuous: Hexbin + Pearson
-
-
             # Continuous + Categorical/Binary: Boxplot
-
             # Categorical-Categorical: Heatmap
+
+    def multivariate_analysis(self):
+        # Skip if no target was selected
+        if "target" not in st.session_state or st.session_state["target"] is None: 
+            st.warning("Please select a target variable first")
+            return
+        
+        if st.session_state['feature_importance_df'] is None:
+            df = self.df
+            target = st.session_state["target"]
+            X, y = get_numeric_x_and_y_from_df(dataframe = df, target =  target)
+            scaler = StandardScaler()
+            X_scaled = scaler.fit_transform(X)
+
+            t = self.autotype_dict[target]            
+                # Simple mapping based on your auto types
+            type_to_problem = {
+                    "Continuous":  "regression",
+                    "Binary":      "classification_binary",
+                    "Categorical": "classification_multi",
+                    "Boolean":     "classification",
+                }
+            detected = type_to_problem.get(t)
+
+            with st.spinner("Getting variable importance via ML…"):
+                # CLASSIFICATION
+                if detected in ["classification_multi", "classification_binary"]:
+                    rf = RandomForestClassifier(random_state=42)
+                    param_grid = [{
+                        'n_estimators': [10,30,60,100,200],
+                        'max_depth': [5, 10, 20, 30],
+                        'min_samples_split': [2, 5, 10]
+                    }]
+                    
+                    grid_search = GridSearchCV(
+                        rf,
+                        param_grid, 
+                        cv=5,
+                        scoring='accuracy',
+                        return_train_score=False  # keep it lean; set True if you want to display train CV too
+                    )
+                    grid_search.fit(X_scaled, y)
+                    # HEre is the variable importance
+                    importances = grid_search.best_estimator_.feature_importances_
+                    importance_df = pd.DataFrame({
+                        'Feature': X.columns,
+                        'Importance': importances
+                    }).sort_values(by='Importance', ascending=False)
+                        
+                # REGRESSION
+                elif detected == "regression":
+                    rf = RandomForestRegressor(random_state=42)
+                    param_grid = [{
+                        'n_estimators': [10,30,60,100,200],
+                        'max_depth': [5, 10, 20, 30],
+                        'min_samples_split': [2, 5, 10]
+                    }]
+                    
+                    grid_search = GridSearchCV(
+                        rf,
+                        param_grid,
+                        cv=5,
+                        scoring=['neg_mean_absolute_error','neg_root_mean_squared_error','r2'],
+                        refit='neg_root_mean_squared_error',
+                        return_train_score=False
+                    )
+                    grid_search.fit(X_scaled, y)
+
+                    # HEre is the variable importance
+                    importances = grid_search.best_estimator_.feature_importances_
+                    importance_df = pd.DataFrame({
+                        'Feature': X.columns,
+                        'Importance': importances
+                    }).sort_values(by='Importance', ascending=False)
+                
+            st.session_state['feature_importance_df'] = importance_df
+            st.markdown("**Feature Importance from Random Forest**")
+            st.dataframe(importance_df, use_container_width=True, hide_index=True)
+
+
+
+
 

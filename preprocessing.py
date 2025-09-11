@@ -5,11 +5,12 @@
 #   • SUGGESTIONS – marked with "SUGGESTION:" for ideas you may want to add/modify
 #   • EXPLANATIONS – comments describing what each block does
 # ----------------------------------------------------------------------------
-
+import code
+import subprocess
+import sys
 import streamlit as st
 import pandas as pd
 from src.preproc import Summarizer, Processor, Selector
-import streamlit as st
 
 # import requests  # will import lazily inside ask_llm to avoid import errors if requests not installed
 
@@ -42,7 +43,8 @@ for key, default in [
     ("last_action_general", None),
     ("llm_output", None),
     ("llm_new_series", None),
-    ("var_to_change", None)
+    ("var_to_change", None),
+    ("feature_importance_df", None)
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -52,19 +54,55 @@ for key, default in [
 # ----------------------------------------------------------------------------
 
 if st.session_state['dataframe'] is None:
-    upload_option = st.radio("Choose input method:", ("Upload CSV")) #, "Select from folder"))
+    upload_option = st.radio("Choose input method:", ["Upload CSV","Python script"]) #, "Select from folder"))
+    match upload_option:
+        case "Upload CSV":
+            uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
+            if uploaded_file:
+                try:
+                    dataframe = pd.read_csv(uploaded_file)
+                except Exception as e:
+                    st.error(f"Failed to read CSV: {e}")
+                else:
+                    st.session_state["uploaded_file"] = uploaded_file
+                    st.session_state['dataframe'] = dataframe
+                    st.rerun()
+                    st.success("File successfully uploaded!")
 
-    if upload_option == "Upload CSV":
-        uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
-        if uploaded_file:
-            try:
-                dataframe = pd.read_csv(uploaded_file)
-            except Exception as e:
-                st.error(f"Failed to read CSV: {e}")
-            else:
-                st.session_state["uploaded_file"] = uploaded_file
-                st.session_state['dataframe'] = dataframe
-                st.success("File successfully uploaded!")
+        case "Python script":
+            install_code = st.text_area(label = "Your requirements, if any", 
+                                        placeholder  = """Just like you would write a requirements file! Like this:
+'''
+streamlit
+scikit-learn
+scipy
+'''
+""",
+                                        key="install_code")
+            import_data_code = st.text_area(label = "Your code to retrieve data", 
+                                        placeholder  = """Must start with imports, must end with a pandas DataFrame named 'starting_dataframe'
+e.g.
+
+import pandas as pd
+[...]
+starting_dataframe = a Pandas DataFrame object""",
+                                        key="uploader_code")
+            
+            if st.button("Run all", key=f"run_import_code"):
+                        with st.spinner("Installing dependencies..."):
+                            # Split the install_code string into lines, filter out comments and empty lines
+                            packages = [line.strip() for line in install_code.splitlines() if line.strip() and not line.startswith("#")]
+                            if packages:
+                                subprocess.run([sys.executable, "-m", "pip", "install", *packages])
+                        with st.spinner("Running code..."):
+                            local_ns = {"pd": pd}
+                            exec(import_data_code, {}, local_ns)
+                            if "starting_dataframe" in local_ns and isinstance(local_ns["starting_dataframe"], pd.DataFrame):
+                                st.session_state['dataframe'] = local_ns["starting_dataframe"]
+                                st.rerun()
+                                st.success("Code ran successfully and DataFrame found!")
+                            else:
+                                st.error("Code did not produce a DataFrame named 'starting_dataframe'.")
 
 # ----------------------------------------------------------------------------
 # Main UI once we have a DataFrame
@@ -136,9 +174,9 @@ if st.session_state['dataframe'] is not None:
     if st.toggle("Bivariate"):
         selector_obj.bivariate_analysis()
             
-    # if st.toggle("Multivariate"):
-    #     st.markdown("#### Bivariate analysis")
-    #     selector_obj.multivariate_analysis()
+    if st.toggle("Multivariate"):
+        st.markdown("#### Multivariate")
+        selector_obj.multivariate_analysis()
 
     st.markdown("#### X variables")
     selector_obj.feature_selection()
