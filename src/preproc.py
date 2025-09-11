@@ -403,7 +403,7 @@ class Processor(Summarizer):
 
             # Summary for selected variable
             summary_row = summary_df[summary_df["Variable"] == col]
-            st.dataframe(summary_row, use_container_width=True, hide_index=True)
+            st.dataframe(summary_row, width='stretch', hide_index=True)
 
             if st.toggle("Show some example observations", key=f"toggle_show_examples_{col}"):
                 unique_vals = pd.Series(ser.dropna().unique())
@@ -610,7 +610,7 @@ class Processor(Summarizer):
                         ).reset_index(drop=True)
                         
                         # Show comparison
-                        st.dataframe(comparison_df, use_container_width=True)
+                        st.dataframe(comparison_df, width='stretch')
                         
                         # Actions for the transformed data
                         action_col1, action_col2 = st.columns([2, 1])
@@ -877,7 +877,7 @@ class Selector(Summarizer):
             if st.checkbox("Show Basic Statistics", key=f"toggle_show_stats_univar_{selected_var}"):
                 summary_row = summary_df[summary_df["Variable"] == selected_var]
                 st.markdown("**Summary**")
-                st.dataframe(summary_row, use_container_width=True, hide_index=True)
+                st.dataframe(summary_row, width='stretch', hide_index=True)
                 
                 if vartype != "Continuous":
                     # Value counts in expander with minimum width

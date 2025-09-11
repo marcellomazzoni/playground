@@ -113,7 +113,7 @@ if st.session_state['dataframe'] is not None:
 
     # Preview
     st.markdown("### Dataset Preview")
-    st.dataframe(pd.concat([df.head(10), df.tail(10)]), use_container_width=True)
+    st.dataframe(pd.concat([df.head(10), df.tail(10)]), width='stretch')
 
     # Type detection – recomputed on each run 
     summary_obj = Summarizer(df)
@@ -128,17 +128,17 @@ if st.session_state['dataframe'] is not None:
     show_block_numeric = st.toggle("Show Numeric Variables Summary", key="toggle_show_block_num")
     if show_block_numeric and not numeric_summary_df.empty:
         st.markdown("### Numeric Variables")
-        st.dataframe(numeric_summary_df, use_container_width=True, hide_index=True)
+        st.dataframe(numeric_summary_df, width='stretch', hide_index=True)
 
     show_block_string = st.toggle("Show String Variables Summary", key="toggle_show_block_string")
     if show_block_string and not string_summary_df.empty:
         st.markdown("### String Variables")
-        st.dataframe(string_summary_df, use_container_width=True, hide_index=True)
+        st.dataframe(string_summary_df, width='stretch', hide_index=True)
 
     show_block_datetime = st.toggle("Show Datetime Variables Summary", key="toggle_show_block_datetime")
     if show_block_datetime and not datetime_summary_df.empty:
         st.markdown("### Datetime Variables")
-        st.dataframe(datetime_summary_df, use_container_width=True, hide_index=True)
+        st.dataframe(datetime_summary_df, width='stretch', hide_index=True)
 
     # ---- Interactive cleaning tool ----
     st.markdown("---")

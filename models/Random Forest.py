@@ -15,7 +15,7 @@ from sklearn.metrics import (
     accuracy_score, classification_report,
     mean_squared_error, mean_absolute_error, r2_score
 )
-
+from src.util import debug_cross_val
 # ------------------------ Step 1: Parameter Selection ------------------------
 st.title("Random Forest Model Training & Testing")
 
@@ -144,6 +144,7 @@ if st.session_state.confirmed:
                     return_train_score=False  # keep it lean; set True if you want to display train CV too
                 )
                 grid_search.fit(X_train_scaled, y_train)
+                debug_cross_val(grid_search)
 
                 # NEW: capture CV summary (mean ± std for the selected scorer at best params)
                 best_idx = grid_search.best_index_
@@ -173,6 +174,7 @@ if st.session_state.confirmed:
                     return_train_score=False
                 )
                 grid_search.fit(X_train_scaled, y_train)
+                debug_cross_val(grid_search)
 
                 # NEW: capture CV summary for all provided scorers at best params.
                 best_idx = grid_search.best_index_
@@ -287,6 +289,9 @@ if st.session_state.confirmed:
                     col2.metric("Precision", f"{st.session_state.RF_test_metrics['precision']:.3f}")
                     col3.metric("Recall", f"{st.session_state.RF_test_metrics['recall']:.3f}")
                     col4.metric("F1-score", f"{st.session_state.RF_test_metrics['f1']:.3f}")
+                    y_test = st.session_state.RF_y_test
+                    y_proba = st.session_state.RF_y_proba
+                    y_pred = st.session_state.RF_y_pred
 
                     # Confusion matrix
                     st.markdown("")
@@ -300,12 +305,25 @@ if st.session_state.confirmed:
                     ax.set_ylabel('True')
                     fig.tight_layout()
                     show_centered_plot(fig)
+                    
+                    st.markdown("")
+                    st.markdown("#### 📑 Classification Report")
+                    report_dict = classification_report(y_test, y_pred, output_dict=True)
+                    report_df = pd.DataFrame(report_dict).transpose().drop('accuracy')
+                    report_df['support'] = report_df['support'].fillna('')
+                    styled_df = report_df.style.format(
+                        formatter={
+                            'precision': '{:.2f}',
+                            'recall': '{:.2f}',
+                            'f1-score': '{:.2f}',
+                            'support': '{:.0f}',
+                        }
+                    ).background_gradient(cmap='Blues', subset=['precision', 'recall', 'f1-score'])
+                    st.dataframe(styled_df, width='stretch')
 
                     # ROC and PR curves
                     st.markdown("")
                     st.markdown("#### 📈 AUC Analysis")
-                    y_test = st.session_state.RF_y_test
-                    y_proba = st.session_state.RF_y_proba
                     curve_type = st.radio(
                         "Select curve type:",
                         ['ROC Curve', 'Precision-Recall Curve'],
@@ -345,6 +363,8 @@ if st.session_state.confirmed:
                     col1.metric("Accuracy", f"{st.session_state.RF_test_metrics['accuracy']:.3f}")
                     col2.metric("Macro F1", f"{st.session_state.RF_test_metrics['macro_f1']:.3f}")
                     col3.metric("Weighted F1", f"{st.session_state.RF_test_metrics['weighted_f1']:.3f}")
+                    y_test = st.session_state.RF_y_test
+                    y_pred = st.session_state.RF_y_pred
 
                     # Confusion matrix
                     st.markdown("")
@@ -364,7 +384,7 @@ if st.session_state.confirmed:
                     st.markdown("#### 📑 Classification Report")
                     report_dict = classification_report(y_test, y_pred, output_dict=True)
                     # Convert the dictionary to a DataFrame
-                    report_df = pd.DataFrame(report_dict).transpose()
+                    report_df = pd.DataFrame(report_dict).transpose().drop('accuracy')
                     # The final row contains metrics for accuracy, macro avg, and weighted avg.
                     # The `support` column is not applicable to these rows, so we can clean it up.
                     report_df['support'] = report_df['support'].fillna('')
@@ -375,11 +395,11 @@ if st.session_state.confirmed:
                             'f1-score': '{:.2f}',
                             'macro avg': '{:.2f}',
                             'weighted avg': '{:.2f}',
-                            'support': '{:.2f}',
+                            'support': '{:.0f}',
                         }
                     ).background_gradient(cmap='Blues', subset=['precision', 'recall', 'f1-score'])
                     # Display the formatted DataFrame
-                    st.dataframe(styled_df, use_container_width=True)
+                    st.dataframe(styled_df, width='stretch')
 
                 case 'regression':  # Regression
                     st.markdown("")
@@ -389,7 +409,6 @@ if st.session_state.confirmed:
                     col2.metric("RMSE", f"{st.session_state.RF_test_metrics['rmse']:.3f}")
                     col3.metric("MAE", f"{st.session_state.RF_test_metrics['mae']:.3f}")
                     col4.metric("R²", f"{st.session_state.RF_test_metrics['r2']:.3f}")
-
                     y_test = st.session_state.RF_y_test
                     y_pred = st.session_state.RF_y_pred
                     

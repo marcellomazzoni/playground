@@ -9,7 +9,7 @@ from sklearn.preprocessing import StandardScaler, PolynomialFeatures
 from sklearn.linear_model import LinearRegression, Lasso, Ridge
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.pipeline import Pipeline
-from src .util import debug_cross_val, generate_model_formula_latex
+from src.util import debug_cross_val, generate_model_formula_latex
 
 # ------------------------ Step 1: Parameter Selection ------------------------
 st.title("Linear Models Training & Testing")

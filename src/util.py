@@ -169,7 +169,7 @@ def action_radio_for_column(col: str,
 # ========================= Usage example =========================
 
 
-def show_centered_plot(plot_obj, width_ratio=2.4, plot_type='pyplot', width=None, height=None):
+def show_centered_plot(plot_obj, width_ratio=2.4, plot_type='pyplot', width='stretch', height='stretch'):
     """
     Display a plot centered in streamlit with configurable width.
     
@@ -182,11 +182,12 @@ def show_centered_plot(plot_obj, width_ratio=2.4, plot_type='pyplot', width=None
     with mid:
         match plot_type.lower():
             case 'pyplot' | 'matplotlib':
-                st.pyplot(plot_obj, width=width, height=height)
+                st.pyplot(plot_obj)
+                
             case 'plotly':
-                if height:
+                if isinstance(height, (int, float)):
                     plot_obj.update_layout(height=height)
-                if width:
+                if isinstance(width, (int, float)):
                     plot_obj.update_layout(width=width)
                 st.plotly_chart(plot_obj)
             case _:
@@ -206,9 +207,9 @@ def show_plot_and_metrics(plot_obj, width_ratio=2.4, plot_type='pyplot', list_of
     with chart:
         match plot_type.lower():
             case 'pyplot' | 'matplotlib':
-                st.pyplot(plot_obj, use_container_width=True)
+                st.pyplot(plot_obj, width='stretch')
             case 'plotly':
-                st.plotly_chart(plot_obj, use_container_width=True)
+                st.plotly_chart(plot_obj, width='stretch')
             case _:
                 st.write("Unsupported plot type")
     with metrics:

@@ -178,9 +178,10 @@ if st.session_state.confirmed:
                     scoring='accuracy',
                     return_train_score=False
                 )
-                grid_search.fit(X_train_scaled, y_train)
                 
+                grid_search.fit(X_train_scaled, y_train)   
                 debug_cross_val(grid_search)
+                
 
                 best_idx = grid_search.best_index_
                 cv_mean = grid_search.cv_results_['mean_test_score'][best_idx]
@@ -339,6 +340,9 @@ if st.session_state.confirmed:
                     col2.metric("Precision", f"{st.session_state.SVM_test_metrics['precision']:.3f}")
                     col3.metric("Recall", f"{st.session_state.SVM_test_metrics['recall']:.3f}")
                     col4.metric("F1-score", f"{st.session_state.SVM_test_metrics['f1']:.3f}")
+                    y_test = st.session_state.SVM_y_test
+                    y_proba = st.session_state.SVM_y_proba
+                    y_pred = st.session_state.SVM_y_pred
 
                     st.markdown("")
                     st.markdown("#### 🧩 Confusion Matrix")
@@ -351,11 +355,25 @@ if st.session_state.confirmed:
                     ax.set_ylabel('True')
                     fig.tight_layout()
                     show_centered_plot(fig)
+                    
+                    st.markdown("")
+                    st.markdown("#### 📑 Classification Report")
+                    report_dict = classification_report(y_test, y_pred, output_dict=True)
+                    report_df = pd.DataFrame(report_dict).transpose().drop('accuracy')
+                    report_df['support'] = report_df['support'].fillna('')
+                    styled_df = report_df.style.format(
+                        formatter={
+                            'precision': '{:.2f}',
+                            'recall': '{:.2f}',
+                            'f1-score': '{:.2f}',
+                            'support': '{:.0f}',
+                        }
+                    ).background_gradient(cmap='Blues', subset=['precision', 'recall', 'f1-score'])
+                    st.dataframe(styled_df, width='stretch')
+
 
                     st.markdown("")
                     st.markdown("#### 📈 AUC Analysis")
-                    y_test = st.session_state.SVM_y_test
-                    y_proba = st.session_state.SVM_y_proba
                     curve_type = st.radio(
                         "Select curve type:",
                         ['ROC Curve', 'Precision-Recall Curve'],
@@ -395,6 +413,9 @@ if st.session_state.confirmed:
                     col1.metric("Accuracy", f"{st.session_state.SVM_test_metrics['accuracy']:.3f}")
                     col2.metric("Macro F1", f"{st.session_state.SVM_test_metrics['macro_f1']:.3f}")
                     col3.metric("Weighted F1", f"{st.session_state.SVM_test_metrics['weighted_f1']:.3f}")
+                    y_test = st.session_state.SVM_y_test
+                    y_pred = st.session_state.SVM_y_pred
+
 
                     st.markdown("")
                     st.markdown("#### 🧩 Confusion Matrix")
@@ -411,7 +432,7 @@ if st.session_state.confirmed:
                     st.markdown("")
                     st.markdown("#### 📑 Classification Report")
                     report_dict = classification_report(y_test, y_pred, output_dict=True)
-                    report_df = pd.DataFrame(report_dict).transpose()
+                    report_df = pd.DataFrame(report_dict).transpose().drop('accuracy')
                     report_df['support'] = report_df['support'].fillna('')
                     styled_df = report_df.style.format(
                         formatter={
@@ -420,10 +441,10 @@ if st.session_state.confirmed:
                             'f1-score': '{:.2f}',
                             'macro avg': '{:.2f}',
                             'weighted avg': '{:.2f}',
-                            'support': '{:.2f}',
+                            'support': '{:.0f}',
                         }
                     ).background_gradient(cmap='Blues', subset=['precision', 'recall', 'f1-score'])
-                    st.dataframe(styled_df, use_container_width=True)
+                    st.dataframe(styled_df, width='stretch')
 
                 case 'regression':
                     st.markdown("")

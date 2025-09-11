@@ -1,0 +1,76 @@
+[theme]
+base = "light"
+
+primaryColor = "#1c83e1"                # Blu acceso, accent color
+backgroundColor = "#f9fcff"             # Bianco-azzurrino molto chiaro
+secondaryBackgroundColor = "#eaf3fc"    # Light blue per widget
+textColor = "#0d1b2a"                   # Blu molto scuro quasi nero
+linkColor = "#0077ff"
+linkUnderline = false
+codeBackgroundColor = "#e6f0ff"
+
+font = "Inter, Roboto, sans-serif"
+baseFontSize = 16
+baseFontWeight = 400
+headingFont = "Orbitron, Inter, sans-serif"   # Font futuristico per headings
+headingFontSizes = ["2.75rem", "2.25rem", "1.75rem", "1.5rem", "1.25rem", "1rem"]
+headingFontWeights = [700, 600, 600, 600, 500, 500]
+
+codeFont = "Fira Code, monospace"
+codeFontSize = "0.9rem"
+codeFontWeight = 500
+
+baseRadius = "0.75rem"    # arrotondamento futuristico morbido
+buttonRadius = "full"     # bottoni pill-shaped moderni
+
+borderColor = "#cfe0f7"
+dataframeBorderColor = "#d9e6f5"
+dataframeHeaderBackgroundColor = "#d9ecff"
+
+showWidgetBorder = false
+showSidebarBorder = false
+
+# Tavolozza grafici - coerente con blu/azzurri futuristici
+chartCategoricalColors = [
+    "#1c83e1", "#60b4ff", "#29b09d", "#ff8700",
+    "#6d3fc0", "#ff2b2b", "#ffd16a", "#7defa1",
+    "#004280", "#c7ebff"
+]
+
+chartSequentialColors = [
+    "#f0f8ff", # quasi bianco
+    "#dcefff",
+    "#c7ebff",
+    "#a6dcff",
+    "#83c9ff",
+    "#60b4ff",
+    "#3d9df3",
+    "#1c83e1",
+    "#0054a3",
+    "#003566"
+]
+
+[theme.sidebar]
+primaryColor = "#1c83e1"
+backgroundColor = "#eaf3fc"
+secondaryBackgroundColor = "#d9ecff"
+textColor = "#0d1b2a"
+linkColor = "#0077ff"
+linkUnderline = false
+codeBackgroundColor = "#e6f0ff"
+
+font = "Inter, Roboto, sans-serif"
+headingFont = "Orbitron, Inter, sans-serif"
+headingFontSizes = ["1.5rem", "1.25rem", "1.125rem", "1rem", "0.875rem", "0.75rem"]
+headingFontWeights = [600, 600, 600, 500, 500, 400]
+
+codeFont = "Fira Code, monospace"
+codeFontSize = "0.8rem"
+
+baseRadius = "0.5rem"
+buttonRadius = "full"
+borderColor = "#cfe0f7"
+dataframeBorderColor = "#d9e6f5"
+dataframeHeaderBackgroundColor = "#d9ecff"
+
+showWidgetBorder = false
