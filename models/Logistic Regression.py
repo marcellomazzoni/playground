@@ -25,7 +25,7 @@ if not st.session_state.get('confirmed', False):
     st.stop()
 
 if hasattr(st.session_state.get('uploaded_file', None), 'name'):
-    st.header(f"Analysis of < {st.session_state.uploaded_file.name} >")
+    st.header(f"Analysis of: ` {st.session_state.uploaded_file.name} `")
 
 # ------------------------ Session State Init ------------------------
 if 'LR_trained' not in st.session_state:
@@ -197,7 +197,6 @@ if st.session_state.confirmed:
                             'C': Cs,
                         })
             
-                    
             if are_params_empty(param_grid, necessary_params=['C'], not_necessary_params=None):
                 st.stop()
             

@@ -24,7 +24,7 @@ if not st.session_state.get('confirmed', False):
     st.stop()
 
 if hasattr(st.session_state.get('uploaded_file', None), 'name'):
-    st.header(f"Analysis of < {st.session_state.uploaded_file.name} >")
+    st.header(f"Analysis of: ` {st.session_state.uploaded_file.name} `")
 
 # ------------------------ Session State Init ------------------------
 if 'NB_trained' not in st.session_state:

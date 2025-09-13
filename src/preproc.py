@@ -782,7 +782,6 @@ class Selector(Summarizer):
        super().__init__(df)
 
     def target_and_problem_selection(self):
-        
         df = self.df
         numeric_summary_df = self.numeric_summary()
         autotype_dict = self.autotype_dict
@@ -799,7 +798,7 @@ class Selector(Summarizer):
         target = st.selectbox("Select the target variable:", [""] + eligible_targets)
         
         if target and target != "":
-            st.session_state["target"] = target
+            st.session_state['target'] = target
             t = autotype_dict[target]
             st.success(f"You selected {target}, which is a {t.lower()} variable.")
             
@@ -818,18 +817,18 @@ class Selector(Summarizer):
                 st.session_state["problem_type"] = None
             else:
                 st.session_state["problem_type"] = detected
-        else:
-            st.session_state["target"] = None
+        # else:
+        #     st.session_state['target'] = None
     
     def feature_selection(self):
         df = self.df
         
         # Make sure a target is already chosen
-        if "target" not in st.session_state or st.session_state["target"] is None:
+        if "target" not in st.session_state or st.session_state['target'] is None:
             st.warning("Please select a target variable first in 'Target Variable Selection'")
             return
 
-        target = st.session_state["target"]
+        target = st.session_state['target']
 
         # Candidate features = all columns except target
         candidate_vars = [c for c in df.columns if c != target]
@@ -855,13 +854,13 @@ class Selector(Summarizer):
     def univariate_analysis(self):
 
         # Skip if no target was selected
-        if "target" not in st.session_state or st.session_state["target"] is None:
+        if "target" not in st.session_state or st.session_state['target'] is None:
             st.warning("Please select a target variable first")
             return
             
         df = self.df
         summary_df = self.summary_df
-        target = st.session_state["target"]
+        target = st.session_state['target']
         
         # Get non-target variables
         available_vars = [col for col in df.columns if col != target]
@@ -986,12 +985,12 @@ class Selector(Summarizer):
     def bivariate_analysis(self):
         
          # Skip if no target was selected
-        if "target" not in st.session_state or st.session_state["target"] is None: 
+        if "target" not in st.session_state or st.session_state['target'] is None: 
             st.warning("Please select a target variable first")
             return
             
         df = self.df
-        target = st.session_state["target"]
+        target = st.session_state['target']
         x_df = df.drop(columns=[target])
         autotype_dict = self.autotype_dict
         
@@ -1048,7 +1047,7 @@ class Selector(Summarizer):
 
     def multivariate_analysis(self):
         # Skip if no target was selected
-        if "target" not in st.session_state or st.session_state["target"] is None: 
+        if "target" not in st.session_state or st.session_state['target'] is None: 
             st.warning("Please select a target variable first")
             return
         
@@ -1056,7 +1055,7 @@ class Selector(Summarizer):
             with st.spinner("Getting variable importance via ML…"):
                 if st.session_state['feature_importance_df'] is None:
                     df = self.df
-                    target = st.session_state["target"]
+                    target = st.session_state['target']
                     X, y = get_numeric_x_and_y_from_df(dataframe = df, target =  target)
                     scaler = StandardScaler()
                     X_scaled = scaler.fit_transform(X)
@@ -1149,11 +1148,11 @@ class Selector(Summarizer):
 
         if st.checkbox("Show 3D PCA Plot", key="toggle_show_3d_pca"):
             with st.spinner("Getting variable importance via ML…"):
-                if "target" not in st.session_state or st.session_state["target"] is None:
+                if "target" not in st.session_state or st.session_state['target'] is None:
                     st.warning("Please select a target variable first")
                     return
                 df = self.df
-                target = st.session_state["target"]
+                target = st.session_state['target']
 
                 X, y = get_numeric_x_and_y_from_df(dataframe = df, target =  target)
 

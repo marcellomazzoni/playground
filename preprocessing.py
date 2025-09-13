@@ -11,9 +11,11 @@ import sys
 import streamlit as st
 import pandas as pd
 from src.preproc import Summarizer, Processor, Selector
+from src.util import choose_llm, show_session_state_debug
 
 # import requests  # will import lazily inside ask_llm to avoid import errors if requests not installed
-
+choose_llm()
+show_session_state_debug()
 # ----------------------------------------------------------------------------
 # UI – Reset and title
 # ----------------------------------------------------------------------------
@@ -163,7 +165,7 @@ if st.session_state['dataframe'] is not None:
     selector_obj = Selector(df)
     selector_obj.target_and_problem_selection()
                 
-    st.write(st.session_state["target"])
+    st.write(st.session_state['target'])
     
     st.markdown("### Variable Selection")
     

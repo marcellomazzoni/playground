@@ -15,7 +15,7 @@ from sklearn.metrics import (
     accuracy_score, classification_report,
     mean_squared_error, mean_absolute_error, r2_score
 )
-from src.util import debug_cross_val, are_params_empty
+from src.util import debug_cross_val, are_params_empty, plot_actual_vs_predicted, plot_residuals
 
 # ------------------------ Step 1: Parameter Selection ------------------------
 st.title("Support Vector Machine (SVM) Model Training & Testing")
@@ -26,7 +26,7 @@ if not st.session_state.get('confirmed', False):
     st.stop()
 
 if hasattr(st.session_state.get('uploaded_file', None), 'name'):
-    st.header(f"Analysis of < {st.session_state.uploaded_file.name} >")
+    st.header(f"Analysis of: ` {st.session_state.uploaded_file.name} `")
 
 # ------------------------ Session State Init ------------------------
 if 'SVM_trained' not in st.session_state:
@@ -459,22 +459,12 @@ if st.session_state.confirmed:
                     y_pred = st.session_state.SVM_y_pred
 
                     st.markdown("")
+                    # Actual vs Predicted Plot
                     st.markdown("#### 📈 Actual vs Predicted Values")
-                    fig, ax = plt.subplots(figsize=(4.2, 3.6))
-                    ax.scatter(y_test, y_pred, alpha=0.5)
-                    ax.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--', lw=2)
-                    ax.set_xlabel('Actual Values')
-                    ax.set_ylabel('Predicted Values')
-                    fig.tight_layout()
+                    fig = plot_actual_vs_predicted(y_true = y_test, y_pred = y_pred)
                     show_centered_plot(fig)
 
                     st.markdown("")
                     st.markdown("#### 📊 Residuals Plot")
-                    residuals = y_test - y_pred
-                    fig, ax = plt.subplots(figsize=(4.2, 3.6))
-                    ax.scatter(y_pred, residuals, alpha=0.5)
-                    ax.axhline(y=0, color='r', linestyle='--')
-                    ax.set_xlabel('Predicted Values')
-                    ax.set_ylabel('Residuals')
-                    fig.tight_layout()
+                    fig = plot_residuals(y_true = y_test, y_pred = y_pred)
                     show_centered_plot(fig)
