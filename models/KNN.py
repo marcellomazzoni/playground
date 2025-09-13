@@ -64,7 +64,12 @@ if st.session_state.confirmed:
     test_size = st.sidebar.slider('Test Size (%)', min_value=5, max_value=50, value=20, step=5) / 100
     cv_folds = st.sidebar.slider('CV Folds', min_value=2, max_value=10, value=5)
     st.sidebar.markdown('---')
-    n_neighbors = st.sidebar.multiselect('n_neighbors', [3, 5, 7, 9, 11], default=[3, 5], accept_new_options=True, max_selections=5)
+    n_neighbors_0 = st.sidebar.multiselect('n_neighbors', [3, 5, 7, 9, 11], default=[3, 5], accept_new_options=True, max_selections=5)
+    n_neighbors = []
+    for item in n_neighbors_0:
+            # Convert the item to an integer
+            n_neighbors.append(int(item))
+
     weights = st.sidebar.multiselect('weights', ['uniform', 'distance'], default=['uniform'])
     metric = st.sidebar.multiselect('distance metric', ['cosine', 'chebyshev', 'euclidean', 'manhattan'], default=['euclidean'])
     st.sidebar.markdown('---')
@@ -172,7 +177,6 @@ if st.session_state.confirmed:
                     return_train_score=False
                 )
                 grid_search.fit(X_train_scaled, y_train)
-                debug_cross_val(grid_search)
 
                 best_idx = grid_search.best_index_
                 cv = grid_search.cv_results_
@@ -200,6 +204,7 @@ if st.session_state.confirmed:
             st.session_state.KNN_y_test = y_test
             st.session_state.KNN_trained = True
 
+    debug_cross_val(st.session_state.KNN_cv_results)
     if st.session_state.KNN_trained is True:
         st.markdown("### 🏋 Training Set Operations")
         st.markdown("")

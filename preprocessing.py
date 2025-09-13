@@ -165,7 +165,7 @@ if st.session_state['dataframe'] is not None:
     selector_obj = Selector(df)
     selector_obj.target_and_problem_selection()
                 
-    st.write(st.session_state['target'])
+    # st.write(st.session_state['target'])
     
     st.markdown("### Variable Selection")
     

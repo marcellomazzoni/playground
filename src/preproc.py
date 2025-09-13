@@ -284,7 +284,7 @@ class Summarizer():
                     "Median": ser.median(),
                     "% Missing": missing_percent(ser),
                     "# Unique": ser.nunique(dropna=True),
-                    "% Outliers": iqr_outlier_percent(ser) if vartype == "Continuous" else "",
+                    "% Outliers (± 1.5 IQR)": iqr_outlier_percent(ser) if vartype == "Continuous" else "",
                 }
             )
         numeric_summary_df = pd.DataFrame(numeric_summary)
@@ -428,13 +428,14 @@ class Processor(Summarizer):
                             st.rerun()
 
                 if action == "Manage outliers":
-                    method = st.selectbox("Method", ["Cap to 1.5 IQR bounds", "Cap to percentile bounds"])
-                    if method == "Cap to 1.5 IQR bounds":
+                    method = st.selectbox("Method", ["Cap to X * IQR bounds", "Cap to percentile bounds"])
+                    if method == "Cap to X * IQR bounds":
+                        IQR_mult = st.number_input('Inter-Quantile Range multiplier X', min_value=0.0, max_value=2.5, value=1.5, step=0.1, width=300)
                         if st.button("Apply", key=f"apply_outliers_{col}"):
                             q1, q3 = ser.quantile([0.25, 0.75])
                             iqr = q3 - q1
-                            lower = q1 - 1.5 * iqr
-                            upper = q3 + 1.5 * iqr
+                            lower = q1 - (IQR_mult * iqr)
+                            upper = q3 + (IQR_mult * iqr)
                             df[col] = ser.clip(lower, upper)
                             st.session_state.last_action = f"{col} outliers capped to 1.5*IQR"
                             st.session_state['feature_importance_df'] = None
@@ -1005,8 +1006,8 @@ class Selector(Summarizer):
                 )
             
             selected_vars = st.multiselect("Select variables for matrix", 
-                            df.columns.tolist(), 
-                            default=df.columns[:len(df.columns)])
+                            x_df.columns.tolist(), 
+                            default=x_df.columns[:len(x_df.columns)])
 
             match choice:
                 case "By Target":
@@ -1033,10 +1034,7 @@ class Selector(Summarizer):
                 df.columns.tolist(), 
                 default=df.columns[:min(4, len(df.columns))])
 
-            selected_vars = st.multiselect("Select variables for matrix", 
-                                                x_df.columns.tolist(), 
-                                                default=x_df.columns[:len(x_df.columns)])
-            fig = sns.pairplot(x_df[selected_vars], diag_kind="hist", plot_kws={"s": 20, "alpha": 0.7})
+            fig = sns.pairplot(df[selected_vars], diag_kind="hist", plot_kws={"s": 20, "alpha": 0.7})
             st.pyplot(fig)
 
         # --- Custom Bivariate Section ---
@@ -1079,11 +1077,12 @@ class Selector(Summarizer):
                             'min_samples_split': [2, 5, 10]
                         }]
                         
-                        grid_search = GridSearchCV(
+                        grid_search = HalvingGridSearchCV(
                             rf,
                             param_grid, 
                             cv=5,
                             scoring='accuracy',
+                            refit = True,
                             return_train_score=False  # keep it lean; set True if you want to display train CV too
                         )
                         grid_search.fit(X_scaled, y)
@@ -1103,14 +1102,13 @@ class Selector(Summarizer):
                             'min_samples_split': [2, 5, 10]
                         }]
                         
-                        grid_search = HalvingGridSearchCV(
-                            rf,
-                            param_grid,
-                            cv=5,
-                            scoring=['neg_mean_absolute_error','neg_root_mean_squared_error','r2'],
-                            refit='neg_root_mean_squared_error',
-                            return_train_score=False
-                        )
+                        grid_search = HalvingGridSearchCV(rf,
+                                                        param_grid,
+                                                        cv=5,
+                                                        scoring='neg_root_mean_squared_error', # <-- Use a single string here
+                                                        refit=True, # refit will be set to the scoring metric
+                                                        return_train_score=False
+                                                        )
                         grid_search.fit(X_scaled, y)
 
                         # HEre is the variable importance
