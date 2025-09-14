@@ -43,16 +43,16 @@ You create a python snippet, which is your only output.
 Your snippet will address the requested column of the dataframe, only performing what is asked.
 DO NOT CHANGE the original dataframe and column of interest, apply what requested on a newly generated series.
 IMPORTANT: The output series MUST be named exactly "lm_transformed_column"
-You can only use pandas, numpy, math and re.
+Import the libraries you use.
 Never wrap the output in a markdown format.
 
 ## Output format
-You only output python code, without imports (they are already present).
+You only output python code.
 Your output will be executed with exec(your_answer) in a restricted environment, so code accordingly.
 If the user request is to generate more than one new column, simply reply with ```python'raise Exception("You may only generate one column")'```
 """
 
-def  ask_llm_data_clean(df_name, column_name, request, connectivity = 'local'):
+def  ask_llm_data_clean(df, df_name, column_name, request, connectivity = 'local'):
     """Call a local LLM endpoint (e.g., Ollama) to generate a Pandas snippet
     that produces a Series named `lm_transformed_column`.
 
@@ -66,6 +66,7 @@ def  ask_llm_data_clean(df_name, column_name, request, connectivity = 'local'):
     user_prompt = f"""# Request
 This is the origin dataframe name: {df_name}
 The column you must use to generate the new series: {column_name}
+Other columns: {df.columns}
 My request: \n{request}
 """
 
@@ -98,7 +99,7 @@ My request: \n{request}
                     code = response.text
                 
                 else:
-                    code = "print('FUCK YOU BITCH')"
+                    code = "print('NU UH')"
                     
             except ConnectionError as e:
                 print(f"API connection not working:\n {e}")
@@ -574,16 +575,25 @@ class Processor(Summarizer):
                     # Submit button for LLM request
                     if st.button("Submit", key=f"llm_submit_{col}"):
                         with st.spinner("Generating code..."):
-                            code =  ask_llm_data_clean("df", col, llm_request)# connectivity ="api")
+                            if st.session_state.llm_choice == "Ollama":
+                                code =  ask_llm_data_clean(df=df, df_name="df", column_name= col, request= llm_request)
+                            elif st.session_state.llm_choice == "Gemini":
+                                code =  ask_llm_data_clean(df=df, df_name="df", column_name= col, request= llm_request, connectivity = "api")
+
                             if code:
                                 st.session_state.llm_code = code
                                 st.markdown("**LLM-proposed code:**")
                                 st.code(code, language="python")
-                                
-                                # Execute in isolated namespace
-                                local_ns = {"df": df.copy(), "np": np, "pd": pd, "re": re}
+
+                                local_ns = {
+                                            "df": df.copy(),  # It's good practice to pass a copy to avoid side effects
+                                            "np": np,
+                                            "pd": pd,
+                                            "re": re
+                                        }
                                 try:
-                                    exec(code, {}, local_ns)
+                                    # exec(code, {}, local_ns)
+                                    exec(code, globals(), locals=local_ns)
                                     # Cerca la variabile di output
                                     new_series = local_ns.get("lm_transformed_column")
                                     
