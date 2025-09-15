@@ -5,7 +5,6 @@
 #   • SUGGESTIONS – marked with "SUGGESTION:" for ideas you may want to add/modify
 #   • EXPLANATIONS – comments describing what each block does
 # ----------------------------------------------------------------------------
-import code
 import subprocess
 import sys
 import streamlit as st

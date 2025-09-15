@@ -13,13 +13,12 @@ This application is currently under active development. While it is not yet a pr
 Here are some of the known issues and planned future enhancements:
 
 *   **Linear Models:** The cross-validation process for Ridge and Lasso regression is currently under development and may not be fully functional.
-*   **Preprocessing:** Minor bugs are present in the preprocessing steps.
-*   **Explainable AI (XAI):** An XAI section to interpret model predictions is a high-priority future addition.
-*   **Multivariate Analysis:** The variable selection step will be enhanced with multivariate analysis techniques.
-*   **Pipeline Storage:** The ability to save and reuse preprocessing steps is a planned feature.
-*   **Expanded ML Use Cases:** Support for time-series forecasting and unsupervised learning is on the roadmap.
-*   **LLM Integration:** The configuration of the Large Language Model (LLM) integration will be improved to allow for easier API key management and support for multiple providers.
-*   **UI/UX:** The user interface will be continuously improved for a better user experience.
+*   **Preprocessing:** Minor bugs may be present in the preprocessing steps - the use of AI still covers the majority of the 
+*   **Explainable AI (XAI):** An XAI section to interpret model predictions is a high-priority future addition. 
+*   **Pipeline Storage:** The ability to save and reuse preprocessing steps is a planned feature. For now, the user can export the resulting dataframe.
+*   **Expanded ML Use Cases:** Support for time-series forecasting and unsupervised learning is on the roadmap. Later on, dealing with text analysis.
+*   **LLM Integration:** The configuration of the Large Language Model (LLM) integration will be improved to allow for easier API key management and support for multiple providers. Only supported use cases: Ollama, Gemini.
+*   **UI/UX:** The user interface will be continuously improved for a better user experience and consistency among pages.
 
 ## Features
 

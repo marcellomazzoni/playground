@@ -12,7 +12,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 from scipy.stats import gaussian_kde
 from sklearn.impute import KNNImputer
-from sklearn.experimental import enable_halving_search_cv
+from sklearn.experimental import enable_halving_search_cv #needed for halving grid
 from sklearn.model_selection import GridSearchCV, HalvingGridSearchCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA

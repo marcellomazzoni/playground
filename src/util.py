@@ -27,11 +27,7 @@ def show_session_state_debug():
         # Display as a DataFrame for a clean, tabular view
         st.dataframe(pd.DataFrame(state_items), use_container_width=True)
 
-
-# ========================= LLM availability + dynamic radio =========================
-# Paste this somewhere near your other utils (before you render the radios).
-# It detects whether an Ollama server is reachable and whether the requested model is installed.
-# Then it builds a radio whose options include "Ask LLM" ONLY when available.
+# ========================= LLM availability =========================
 
 def is_ollama_available(url: str = "http://localhost:11434") -> bool:
     """
@@ -215,52 +211,16 @@ def choose_llm():
                 modal.close()
                 st.rerun() # Rerun to update the main UI
 
-def available_llm(model_name: str = "qwen2.5-coder:3b",
-                  url: str = "http://localhost:11434") -> bool:
-    """
-    Return True iff:
-      1) an Ollama server is reachable at `url`, and
-      2) `model_name` exists in the local model list (/api/tags).
+def available_llm():
+    # Check if an LLM is already configured
+    llm_is_set = False
+    if st.session_state.llm_choice == "Gemini" and st.session_state.gemini_api_key:
+        llm_is_set = True
+    elif st.session_state.llm_choice == "Ollama" and st.session_state.ollama_model_name:
+        llm_is_set = True
+        
+    return llm_is_set
 
-    Notes:
-    - Uses short timeouts so the UI stays responsive.
-    - If `requests` isn't installed or the server is down, returns False.
-    - Cached briefly to avoid hammering the endpoint (auto-refreshes every few seconds).
-    """
-    try:
-        import requests
-    except Exception:
-        return False  # no requests -> treat as unavailable
-
-    @st.cache_data(ttl=8, show_spinner=False)  # small TTL so it updates quickly if you start Ollama/pull a model
-    def _probe(_url: str):
-        # Check server is alive
-        try:
-            r = requests.get(f"{_url}/api/version", timeout=0.7)
-            if r.status_code != 200:
-                return {"alive": False, "models": set()}
-        except Exception:
-            return {"alive": False, "models": set()}
-
-        # Fetch installed models
-        try:
-            r = requests.get(f"{_url}/api/tags", timeout=1.2)
-            if not r.ok:
-                return {"alive": True, "models": set()}
-            data = r.json() or {}
-            models = data.get("models", [])
-            # Ollama returns items with "name" (e.g., "qwen2.5-coder:3b")
-            names = set()
-            for m in models:
-                name = m.get("name") or m.get("model")
-                if name:
-                    names.add(name)
-            return {"alive": True, "models": names}
-        except Exception:
-            return {"alive": True, "models": set()}
-
-    info = _probe(url)
-    return bool(info["alive"] and (model_name in info["models"]))
 
 def get_numeric_x_and_y_from_df(dataframe:pd.DataFrame, target:str):
     a_clean = dataframe.dropna()
@@ -302,7 +262,7 @@ def action_radio_for_column(col: str,
             base_options["None"]
         
     options = base_options.copy()
-    llm_ok = available_llm(model_name=llm_model, url=llm_url)
+    llm_ok = available_llm()
     if llm_ok:
         options.append("Ask LLM")
 
@@ -327,7 +287,7 @@ def action_radio_for_column(col: str,
 
     # Friendly hint if LLM is disabled
     if not llm_ok:
-        st.caption("💡 'Ask LLM' is hidden because Ollama isn’t running or the model isn't installed.")
+        st.caption("💡 'Ask LLM' is hidden because an LLM is not properly set")
 
     return action
 
