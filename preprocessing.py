@@ -45,7 +45,8 @@ for key, default in [
     ("llm_output", None),
     ("llm_new_series", None),
     ("var_to_change", None),
-    ("feature_importance_df", None)
+    ("feature_importance_df", None),
+    ("llm_api_model_name", None)
 ]:
     if key not in st.session_state:
         st.session_state[key] = default

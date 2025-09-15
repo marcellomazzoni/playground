@@ -14,7 +14,9 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     accuracy_score, classification_report
 )
-from src.util import debug_cross_val, are_params_empty, generate_model_formula_latex, get_numeric_x_and_y_from_df
+from src.util import debug_cross_val, are_params_empty, generate_model_formula_latex, get_numeric_x_and_y_from_df, load_descriptions
+
+tooltips = load_descriptions()
 
 # ------------------------ Step 1: Parameter Selection ------------------------
 st.title("Logistic Regression Model Training & Testing")
@@ -64,14 +66,14 @@ if st.session_state.confirmed:
 
     # Widgets collect parameter inputs from user
     st.sidebar.header('Model Parameters')
-    test_size = st.sidebar.slider('Test Size (%)', min_value=5, max_value=50, value=20, step=5) / 100
-    cv_folds = st.sidebar.slider('CV Folds', min_value=2, max_value=10, value=5)
+    test_size = st.sidebar.slider('Test Size (%)', min_value=5, max_value=50, value=20, step=5, help = tooltips['general']['test_size']) / 100
+    cv_folds = st.sidebar.slider('CV Folds', min_value=2, max_value=10, value=5,  help = tooltips['general']['cv_folds'])
     st.sidebar.markdown('---')
-    C = st.sidebar.multiselect('C', [0.1, 1, 10, 100], default=[1], accept_new_options=True, max_selections=4)
-    penalty = st.sidebar.multiselect('penalty', ['l1', 'l2', 'elasticnet', 'none'], default=['l2'])
-    solver = st.sidebar.multiselect('solver', ['newton-cholesky', 'newton-cg', 'lbfgs', 'liblinear', 'sag', 'saga'], default=['lbfgs'])
+    C = st.sidebar.multiselect('C', [0.1, 1, 10, 100], default=[1], accept_new_options=True, max_selections=4, help=tooltips["logistic_regression"]["C"])
+    penalty = st.sidebar.multiselect('penalty', ['l1', 'l2', 'elasticnet', 'none'], default=['l2'], help=tooltips["logistic_regression"]["penalty"])
+    solver = st.sidebar.multiselect('solver', ['newton-cholesky', 'newton-cg', 'lbfgs', 'liblinear', 'sag', 'saga'], default=['lbfgs'], help=tooltips["logistic_regression"]["solver"])
     st.sidebar.markdown('---')
-    seed = st.sidebar.number_input('Random State (seed)', min_value=0, max_value=2_147_483_647, value=42, step=1)
+    seed = st.sidebar.number_input('Random State (seed)', min_value=0, max_value=2_147_483_647, value=42, step=1, help = tooltips['general']['random_state'])
 
     # Store last-used hyperparameters to detect changes
     LR_current_params = {

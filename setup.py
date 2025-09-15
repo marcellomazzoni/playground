@@ -93,7 +93,7 @@ if st.session_state.confirmed:
 
     # --- Sidebar Widgets for Parameter Input ---
     st.sidebar.header('Model Parameters')
-    test_size = st.sidebar.slider('Test Size (%)', min_value=5, max_value=50, value=20, step=5) / 100
+    test_size = st.sidebar.slider('Test Size (%)', min_value=5, max_value=50, value=20, step=5, help = tooltips['general']['test_size']) / 100
     cv_folds = st.sidebar.slider('CV Folds', min_value=2, max_value=10, value=5, help="Number of folds for cross-validation.")
     regularization = st.sidebar.multiselect("Regularization", ["None", "Lasso", "Ridge"], default="None", key="lm_regularization")
 
@@ -107,7 +107,7 @@ if st.session_state.confirmed:
         )
 
     st.sidebar.markdown('---')
-    seed = st.sidebar.number_input('Random State (seed)', min_value=0, max_value=2_147_483_647, value=42, step=1)
+    seed = st.sidebar.number_input('Random State (seed)', min_value=0, max_value=2_147_483_647, value=42, step=1, help = tooltips['general']['random_state'])
 
     # Store current hyperparameters to detect changes
     LM_current_params = {

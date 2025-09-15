@@ -13,7 +13,9 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.metrics import (
     accuracy_score, classification_report
 )
-from src.util import debug_cross_val
+from src.util import debug_cross_val, load_descriptions
+
+tooltips = load_descriptions()
 
 # ------------------------ Step 1: Parameter Selection ------------------------
 st.title("Naive Bayes Model Training & Testing")
@@ -57,12 +59,12 @@ if st.session_state.confirmed:
 
     # Widgets collect parameter inputs from user
     st.sidebar.header('Model Parameters')
-    test_size = st.sidebar.slider('Test Size (%)', min_value=5, max_value=50, value=20, step=5) / 100
-    cv_folds = st.sidebar.slider('CV Folds', min_value=2, max_value=10, value=5)
+    test_size = st.sidebar.slider('Test Size (%)', min_value=5, max_value=50, value=20, step=5, help = tooltips['general']['test_size']) / 100
+    cv_folds = st.sidebar.slider('CV Folds', min_value=2, max_value=10, value=5,  help = tooltips['general']['cv_folds'])
     st.sidebar.markdown('---')
-    var_smoothing = st.sidebar.multiselect('var_smoothing', [1e-9, 1e-8, 1e-7, 1e-6, 1e-5], default=[1e-9], accept_new_options=True, max_selections=5)
+    var_smoothing = st.sidebar.multiselect('var_smoothing', [1e-9, 1e-8, 1e-7, 1e-6, 1e-5], default=[1e-9], accept_new_options=True, max_selections=5, help=tooltips["naive_bayes"]["var_smoothing"])
     st.sidebar.markdown('---')
-    seed = st.sidebar.number_input('Random State (seed)', min_value=0, max_value=2_147_483_647, value=42, step=1)
+    seed = st.sidebar.number_input('Random State (seed)', min_value=0, max_value=2_147_483_647, value=42, step=1, help = tooltips['general']['random_state'])
 
     # Store last-used hyperparameters to detect changes
     NB_current_params = {

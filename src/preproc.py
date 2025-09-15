@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from groq import Groq
 from google import genai
 from google.genai import types
 from dateutil.parser import parse as dateparse
@@ -52,9 +53,13 @@ Your output will be executed with exec(your_answer) in a restricted environment,
 If the user request is to generate more than one new column, simply reply with ```python'raise Exception("You may only generate one column")'```
 """
 
-def  ask_llm_data_clean(df, df_name, column_name, request, connectivity = 'local'):
-    """Call a local LLM endpoint (e.g., Ollama) to generate a Pandas snippet
+def ask_llm_data_clean(df, df_name, column_name, request, connectivity='local', model=None):
+    """
+    Call a local or API LLM endpoint to generate a Pandas snippet
     that produces a Series named `lm_transformed_column`.
+
+    When using connectivity='api', the model parameter must be in the
+    format 'provider/model_name' (e.g., 'gemini/gemini-1.5-flash' or 'groq/llama3-8b-8192').
 
     SECURITY NOTE: Executing code from an LLM is potentially unsafe.
     In this app we execute in a *restricted* local namespace (see below),
@@ -62,7 +67,6 @@ def  ask_llm_data_clean(df, df_name, column_name, request, connectivity = 'local
 
     Returns: the raw code string (for auditability) and the produced Series.
     """
-    
     user_prompt = f"""# Request
 This is the origin dataframe name: {df_name}
 The column you must use to generate the new series: {column_name}
@@ -70,52 +74,88 @@ Other columns: {df.columns}
 My request: \n{request}
 """
 
-    match connectivity:
-        
-        case "api":
-            model_name = 'gemini-2.5-flash'
-            load_dotenv() # Verify to have a GEMINI_API_KEY in your .env
-            try:
-                client = genai.Client()
-                
-                # Sample call for Gemini API
-                response = client.models.generate_content(
-                    model= model_name,
-                    contents= request,
-                    config=types.GenerateContentConfig(
-                        thinking_config = types.ThinkingConfig(thinking_budget=0), # Disables thinking
-                        system_instruction = security_prompt
-                    ),)
-                
-                if int(response.text) != 0:
-                    time.sleep(3)
-                    response = client.models.generate_content(
-                    model= model_name,
-                    contents=user_prompt,
-                    config=types.GenerateContentConfig(
-                        thinking_config = types.ThinkingConfig(thinking_budget=0), # Disables thinking
-                        system_instruction = coder_data_cleaner_system_prompt
-                    ),) 
-                    code = response.text
-                
-                else:
-                    code = "print('NU UH')"
-                    
-            except ConnectionError as e:
-                print(f"API connection not working:\n {e}")
-                
+    code = "" # Initialize code variable
 
-    
+    match connectivity:
+        case "api":
+            # --- API Provider and Model Detection ---
+            if not model or '/' not in model:
+                raise ValueError("For API connectivity, a model must be specified in the 'provider/model_name' format.")
+
+            provider = st.session_state['llm_choice']
+            model_name = model
+            load_dotenv()  # Load GEMINI_API_KEY or GROQ_API_KEY from .env
+
+            try:
+                match provider.lower():
+                    case "gemini":
+                        client = genai.Client()
+                        # 1. Security check call
+                        security_response = client.models.generate_content(
+                            model=model_name,
+                            contents=request, # Check the raw request
+                            config=types.GenerateContentConfig(
+                                thinking_config=types.ThinkingConfig(thinking_budget=0),
+                                system_instruction=security_prompt
+                            ),
+                        )
+
+                        if security_response.text and security_response.text.strip() == '1':
+                            time.sleep(3)
+                            # 2. Main code generation call
+                            main_response = client.models.generate_content(
+                                model=model_name,
+                                contents=user_prompt,
+                                config=types.GenerateContentConfig(
+                                    thinking_config=types.ThinkingConfig(thinking_budget=0),
+                                    system_instruction=coder_data_cleaner_system_prompt
+                                ),
+                            )
+                            code = main_response.text
+                        else:
+                            code = "print('Security check failed: Request is not valid.')"
+
+                    case "groq":
+                        client = Groq() # API key is read from GROQ_API_KEY env var
+                        # 1. Security check call
+                        security_response = client.chat.completions.create(
+                            model=model_name,
+                            messages=[
+                                {"role": "system", "content": security_prompt},
+                                {"role": "user", "content": request} # Check the raw request
+                            ]
+                        )
+                        security_result = security_response.choices[0].message.content
+                        
+                        if security_result and security_result.strip() == '1':
+                            time.sleep(3)
+                            # 2. Main code generation call
+                            main_response = client.chat.completions.create(
+                                model=model_name,
+                                messages=[
+                                    {"role": "system", "content": coder_data_cleaner_system_prompt},
+                                    {"role": "user", "content": user_prompt}
+                                ]
+                            )
+                            code = main_response.choices[0].message.content
+                        else:
+                            code = "print('Security check failed: Request is not valid.')"
+
+                    case _:
+                        raise ValueError(f"Unsupported provider: '{provider}'. Please use 'gemini' or 'groq'.")
+
+            except Exception as e:
+                print(f"API connection or call failed for '{provider}':\n {e}")
+                code = f"print('API call failed: {e}')"
+
+
         case "local": # Using OLLAMA for local testing
-            import requests  # lazy import so the app still runs if requests is missing
+            import requests # lazy import so the app still runs if requests is missing
             url = "http://localhost:11434/api/generate"
-            
-            full_prompt = f"""{coder_data_cleaner_system_prompt}
-            {user_prompt}
-            """
+            full_prompt = f"{coder_data_cleaner_system_prompt}\n{user_prompt}"
 
             data = {
-                "model": "qwen2.5-coder:3b",  # Replace with your model name
+                "model": "qwen2:7b-instruct", # Replace with your model name
                 "prompt": full_prompt,
                 "stream": False,
             }
@@ -126,16 +166,18 @@ My request: \n{request}
                 response.raise_for_status()
                 payload = response.json()
                 code = payload.get("response", "")
+            except requests.exceptions.RequestException as e:
+                print(f"Local connection not working:\n {e}")
+                code = f"print('Local LLM call failed: {e}')"
 
-            except ConnectionError as e:
-                print(f"API connection not working:\n {e}")
 
+    # --- Post-processing (common for all cases) ---
     # Remove any fenced code blocks if present (``` or ```python)
-    code = re.sub(r"^```(?:python)?\s*", "", code.strip(), flags=re.IGNORECASE)
-    code = re.sub(r"\s*```$", "", code.strip(), flags=re.IGNORECASE)
+    if code:
+        code = re.sub(r"^```(?:python)?\s*", "", code.strip(), flags=re.MULTILINE)
+        code = re.sub(r"\s*```$", "", code.strip(), flags=re.MULTILINE)
 
-    return code  # code returned; series will be built where we have access to df
-
+    return code
 # ----------------------------------------------------------------------------
 # Helper: Outlier share via IQR (numeric only)
 # ----------------------------------------------------------------------------
@@ -576,9 +618,9 @@ class Processor(Summarizer):
                     if st.button("Submit", key=f"llm_submit_continuous_{col}"):
                         with st.spinner("Generating code..."):
                             if st.session_state.llm_choice == "Ollama":
-                                code =  ask_llm_data_clean(df=df, df_name="df", column_name= col, request= llm_request)
-                            elif st.session_state.llm_choice == "Gemini":
-                                code =  ask_llm_data_clean(df=df, df_name="df", column_name= col, request= llm_request, connectivity = "api")
+                                code =  ask_llm_data_clean(df=df, df_name="df", column_name= col, request= llm_request, model = st.session_state['ollama_model_name'])
+                            elif st.session_state.llm_choice in ["Gemini","Groq"]:
+                                code =  ask_llm_data_clean(df=df, df_name="df", column_name= col, request= llm_request, connectivity = "api", model = st.session_state['llm_api_model_name'])
 
                             if code:
                                 st.session_state.llm_code = code
@@ -730,9 +772,9 @@ class Processor(Summarizer):
                     if st.button("Submit", key=f"llm_submit_categorical_{col}"):
                         with st.spinner("Generating code..."):
                             if st.session_state.llm_choice == "Ollama":
-                                code =  ask_llm_data_clean(df=df, df_name="df", column_name= col, request= llm_request)
-                            elif st.session_state.llm_choice == "Gemini":
-                                code =  ask_llm_data_clean(df=df, df_name="df", column_name= col, request= llm_request, connectivity = "api")
+                                code =  ask_llm_data_clean(df=df, df_name="df", column_name= col, request= llm_request, model = st.session_state['ollama_model_name'])
+                            elif st.session_state.llm_choice in ["Gemini","Groq"]:
+                                code =  ask_llm_data_clean(df=df, df_name="df", column_name= col, request= llm_request, connectivity = "api", model = st.session_state['llm_api_model_name'])
 
                             if code:
                                 st.session_state.llm_code = code

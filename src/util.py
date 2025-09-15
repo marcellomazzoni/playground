@@ -7,8 +7,14 @@ import pandas as pd
 import numpy as np
 from sklearn.pipeline import Pipeline
 import matplotlib.pyplot as plt
+import json
 
-
+# Correct: The decorator is part of the function's definition.
+@st.cache_data
+def load_descriptions():
+    with open('info/descriptions.json', 'r') as f:
+        return json.load(f)
+    
 def show_session_state_debug():
     """
     Creates an expander in the Streamlit app to display all variables
@@ -55,6 +61,30 @@ def get_available_ollama_models(url: str = "http://localhost:11434") -> list[str
     except requests.exceptions.RequestException:
         return []
     
+def get_available_groq_models(api_key: str) -> list[str]:
+    """
+    Fetches a list of available Groq models for a given API key.
+    Returns a list of model IDs (e.g., ['llama-3.1-8b-instant', 'mixtral-8x7b-32768']).
+    Returns an empty list if the key is invalid or an error occurs.
+    """
+    url = "https://api.groq.com/openai/v1/models"
+    headers = {
+        "Authorization": f"Bearer {api_key}"
+    }
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            return [model['id'] for model in data.get('data', [])]
+        else:
+            return []
+    except requests.exceptions.RequestException:
+        return []
+    except (KeyError, ValueError):
+        # Handles cases where the JSON structure is unexpected
+        return []
+
 def is_ollama_model_available(model_name: str, url: str = "http://localhost:11434") -> bool:
     """
     Returns True if the specified model is available on the Ollama server.
@@ -80,6 +110,24 @@ def is_gemini_key_valid(api_key: str) -> bool:
     except requests.exceptions.RequestException:
         return False
 
+def is_groq_key_valid(api_key: str) -> bool:
+    """
+    Checks if a provided Groq API key is valid by making a simple request to list models.
+    Returns True if the key is valid and receives an authorized response (status code 200), otherwise False.
+    """
+    url = "https://api.groq.com/openai/v1/models"
+    headers = {
+        "Authorization": f"Bearer {api_key}"
+    }
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=5)
+        # A valid key returns 200 OK. An invalid key returns 401 Unauthorized.
+        return response.status_code == 200
+    except requests.exceptions.RequestException:
+        # This handles network issues, timeouts, etc.
+        return False
+    
 def configure_gemini():
     """UI and logic for configuring Gemini."""
     api_key_input = st.text_input(
@@ -96,9 +144,12 @@ def configure_gemini():
             if is_gemini_key_valid(api_key_input):
                 st.success("API key is valid! 🎉")
                 os.environ["GEMINI_API_KEY"] = api_key_input
+                st.session_state.llm_api_model_name = 'gemini-2.5-flash'
             else:
                 st.error("Invalid API key. Please check and try again.")
                 st.session_state.gemini_api_key = "" # Clear invalid key
+                st.session_state.llm_api_model_name = ''
+            
 
 def configure_ollama():
     """UI and logic for configuring Ollama."""
@@ -144,7 +195,81 @@ def configure_ollama():
                 # Note: The actual download logic is not implemented here as it requires
                 # a more complex async process, but this simulates the user flow.
                 st.success("Download confirmed! You can now use this model.")
-                
+
+def configure_groq():
+    """UI and logic for configuring Groq, including model selection."""
+    if "groq_api_key" not in st.session_state:
+        st.session_state.groq_api_key = os.getenv("GROQ_API_KEY", "")
+    if "groq_model_name" not in st.session_state:
+        st.session_state.llm_api_model_name = ""
+
+    api_key_input = st.text_input(
+        "Enter Groq API Key",
+        type="password",
+        value=st.session_state.groq_api_key,
+        placeholder="gsk_...",
+        help="Paste your Groq API key here"
+    )
+
+    is_key_valid = False
+    if api_key_input and api_key_input != st.session_state.groq_api_key:
+        st.session_state.groq_api_key = api_key_input
+        with st.spinner("Checking API key..."):
+            is_key_valid = is_groq_key_valid(api_key_input)
+            if is_key_valid:
+                st.success("API key is valid! 🎉")
+                os.environ["GROQ_API_KEY"] = api_key_input
+            else:
+                st.error("Invalid API key. Please check and try again.")
+                st.session_state.groq_api_key = "" # Clear invalid key
+    
+    # Check validity again on rerun if key is already in session state
+    if st.session_state.groq_api_key:
+        is_key_valid = is_groq_key_valid(st.session_state.groq_api_key)
+
+    if is_key_valid:
+        # Use a cached function to avoid re-fetching the model list on every rerun
+        @st.cache_data(show_spinner="Fetching available Groq models...")
+        def get_cached_groq_models(key):
+            return get_available_groq_models(key)
+
+        available_models = get_cached_groq_models(st.session_state.groq_api_key)
+        
+        if not available_models:
+            st.warning("Could not retrieve available models with this key. Please try again.")
+            return
+
+        # Mock Ollama's model selection interface
+        model_options = available_models
+        
+        # Pre-select the current model if it's in the list
+        try:
+            current_model_index = model_options.index(st.session_state.llm_api_model_name)
+        except ValueError:
+            current_model_index = 0
+            if st.session_state.llm_api_model_name:
+                st.info(f"The previously selected model '{st.session_state.llm_api_model_name}' is not in the current list. Selecting the first available model.")
+        
+        selected_model_dropdown = st.selectbox(
+            "Select an available model:",
+            options=model_options,
+            index=current_model_index
+        )
+        
+        if selected_model_dropdown:
+            st.session_state.llm_api_model_name = selected_model_dropdown
+            st.info(f"Model '{st.session_state.llm_api_model_name}' is selected.")
+            
+            
+def get_llm_choice_index(current_choice):
+    if current_choice == "Ollama":
+        return 0
+    elif current_choice == "Gemini":
+        return 1
+    elif current_choice == "Groq":
+        return 2
+    return 0 # Default to Ollama
+                 
 def choose_llm():
     # --- Session state initialization ---
     if "llm_choice" not in st.session_state:
@@ -153,12 +278,16 @@ def choose_llm():
         st.session_state.gemini_api_key = os.getenv("GEMINI_API_KEY", "")
     if "ollama_model_name" not in st.session_state:
         st.session_state.ollama_model_name = ""
-
+    if "groq_api_key" not in st.session_state: # New: Groq session state
+        st.session_state.groq_api_key = os.getenv("GROQ_API_KEY", "")
+    
     # Check if an LLM is already configured
     llm_is_set = False
     if st.session_state.llm_choice == "Gemini" and st.session_state.gemini_api_key:
         llm_is_set = True
     elif st.session_state.llm_choice == "Ollama" and st.session_state.ollama_model_name:
+        llm_is_set = True
+    elif st.session_state.llm_choice == "Groq" and st.session_state.groq_api_key: # New: Groq check
         llm_is_set = True
 
     # --- UI for settings button and current status ---
@@ -168,10 +297,13 @@ def choose_llm():
     status_icon = "⚪"
     
     if llm_is_set:
-        status_text = f"*LLM is set:* **{st.session_state.llm_choice}**"
+        status_text = f"*LLM is set:* **{st.session_state.llm_choice}**" 
         status_icon = "🟢"
         if st.session_state.llm_choice == "Ollama":
             status_text += f" (Model: **{st.session_state.ollama_model_name}**)"
+        if st.session_state.llm_choice == "Groq":
+            status_text += f" (Model: **{st.session_state.llm_api_model_name}**)"
+        
     
     col1, col2 = st.columns([1, 10])
     with col1:
@@ -179,11 +311,7 @@ def choose_llm():
             modal.open()
         
     with col2:
-    #     st.markdown(f"### {status_text}")
         st.markdown(f"{status_icon} - {status_text}")
-    
-        # if st.button("⚙️", key="open_settings"):
-        #     modal.open()
     
     # --- Modal content for configuration ---
     if modal.is_open():
@@ -193,8 +321,8 @@ def choose_llm():
             # Radio buttons for model choice
             choice = st.radio(
                 "Select engine:",
-                ["Ollama", "Gemini"],
-                index=0 if st.session_state.llm_choice == "Ollama" else 1,
+                ["Ollama", "Gemini", "Groq"], # New: Added Groq
+                index=get_llm_choice_index(st.session_state.llm_choice), # Helper function
                 key="llm_choice_radio"
             )
             
@@ -206,10 +334,13 @@ def choose_llm():
             elif choice == "Ollama":
                 configure_ollama()
             
+            elif choice == "Groq": # New: Groq logic
+                configure_groq()
+            
             st.markdown("---")
             if st.button("Save & Close", key="save_and_close"):
                 modal.close()
-                st.rerun() # Rerun to update the main UI
+                st.rerun()
 
 def available_llm():
     # Check if an LLM is already configured
@@ -218,9 +349,9 @@ def available_llm():
         llm_is_set = True
     elif st.session_state.llm_choice == "Ollama" and st.session_state.ollama_model_name:
         llm_is_set = True
-        
+    elif st.session_state.llm_choice == "Groq" and st.session_state.groq_api_key: # New: Groq check
+        llm_is_set = True
     return llm_is_set
-
 
 def get_numeric_x_and_y_from_df(dataframe:pd.DataFrame, target:str):
     a_clean = dataframe.dropna()
@@ -293,7 +424,6 @@ def action_radio_for_column(col: str,
 
 # ========================= Usage example =========================
 
-
 def show_centered_plot(plot_obj, width_ratio=2.4, plot_type='pyplot', width='stretch', height='stretch'):
     """
     Display a plot centered in streamlit with configurable width.
@@ -318,7 +448,6 @@ def show_centered_plot(plot_obj, width_ratio=2.4, plot_type='pyplot', width='str
             case _:
                 st.write("Unsupported plot type")
 
-
 def show_plot_and_metrics(plot_obj, width_ratio=2.4, plot_type='pyplot', list_of_metrics = []):
     """
     Display a plot centered in streamlit with configurable width.
@@ -342,8 +471,7 @@ def show_plot_and_metrics(plot_obj, width_ratio=2.4, plot_type='pyplot', list_of
             st.write("**Metrics**")
             for metric in list_of_metrics:
                 st.metric(label=metric.get('label', 'N/A'), value=metric.get('value', 'N/A'))
-
-        
+      
 def debug_cross_val(grid_search):
     """
     Smarter CV results display that dynamically finds the primary metric
@@ -390,8 +518,7 @@ def debug_cross_val(grid_search):
     st.write("Cross-Validation Results (Ranked by Primary Metric):")
     st.dataframe(display_df)
     st.markdown("---")
-    
-    
+      
 def are_params_empty(param_grid, necessary_params=None, not_necessary_params=None):
     """
     Checks if a parameter grid is valid based on necessary and optional parameters.
@@ -433,7 +560,6 @@ def are_params_empty(param_grid, necessary_params=None, not_necessary_params=Non
                     return True
 
     return False
-
 
 # --- NEW REUSABLE PLOTTING FUNCTIONS ---
 

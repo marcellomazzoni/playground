@@ -15,7 +15,9 @@ from sklearn.metrics import (
     accuracy_score, classification_report,
     mean_squared_error, mean_absolute_error, r2_score
 )
-from src.util import debug_cross_val, are_params_empty, plot_actual_vs_predicted, plot_residuals
+from src.util import debug_cross_val, are_params_empty, plot_actual_vs_predicted, plot_residuals, load_descriptions
+
+tooltips = load_descriptions()
 
 # ------------------------ Step 1: Parameter Selection ------------------------
 st.title("Support Vector Machine (SVM) Model Training & Testing")
@@ -62,27 +64,27 @@ if st.session_state.confirmed:
 
     # Widgets collect parameter inputs from user
     st.sidebar.header('Model Parameters')
-    test_size = st.sidebar.slider('Test Size (%)', min_value=5, max_value=50, value=20, step=5) / 100
-    cv_folds = st.sidebar.slider('CV Folds', min_value=2, max_value=10, value=5)
+    test_size = st.sidebar.slider('Test Size (%)', min_value=5, max_value=50, value=20, step=5, help = tooltips['general']['test_size']) / 100
+    cv_folds = st.sidebar.slider('CV Folds', min_value=2, max_value=10, value=5,  help = tooltips['general']['cv_folds'])
     st.sidebar.markdown('---')
-    C = st.sidebar.multiselect('C', [0.1, 1, 10, 100], default=[1, 10], accept_new_options=True, max_selections=4)
-    kernel = st.sidebar.multiselect('kernel', ['linear', 'poly', 'rbf', 'sigmoid'], default=['rbf'])
+    C = st.sidebar.multiselect('C', [0.1, 1, 10, 100], default=[1, 10], accept_new_options=True, max_selections=4, help=tooltips["svm"]["C"])
+    kernel = st.sidebar.multiselect('kernel', ['linear', 'poly', 'rbf', 'sigmoid'], default=['rbf'], help=tooltips["svm"]["kernel"])
     # Conditional rendering for degree
     if 'poly' in kernel:
-        degree = st.sidebar.multiselect('degree', [2, 3, 4], default=[3], accept_new_options=True, max_selections=3)
+        degree = st.sidebar.multiselect('degree', [2, 3, 4], default=[3], accept_new_options=True, max_selections=3, help=tooltips["svm"]["degree"])
     else:
         # Define a default value for degree if the widget isn't shown
         degree = [3]
 
     # Conditional rendering for gamma
     if any(k in kernel for k in ['rbf', 'poly', 'sigmoid']):
-        gamma = st.sidebar.multiselect('gamma', ['scale', 'auto'], default=['scale'])
+        gamma = st.sidebar.multiselect('gamma', ['scale', 'auto'], default=['scale'], help=tooltips["svm"]["gamma"])
     else:
         # Define a default value for gamma if the widget isn't shown
         gamma = ['scale']
 
     st.sidebar.markdown('---')
-    seed = st.sidebar.number_input('Random State (seed)', min_value=0, max_value=2_147_483_647, value=42, step=1)
+    seed = st.sidebar.number_input('Random State (seed)', min_value=0, max_value=2_147_483_647, value=42, step=1, help = tooltips['general']['random_state'])
 
     # Store last-used hyperparameters to detect changes
     SVM_current_params = {

@@ -15,7 +15,9 @@ from sklearn.metrics import (
     accuracy_score, classification_report,
     mean_squared_error, mean_absolute_error, r2_score
 )
-from src.util import debug_cross_val, are_params_empty, plot_actual_vs_predicted, plot_residuals, show_session_state_debug
+from src.util import debug_cross_val, are_params_empty, plot_actual_vs_predicted, plot_residuals, show_session_state_debug, load_descriptions
+
+tooltips = load_descriptions()
 
 # ------------------------ Step 1: Parameter Selection ------------------------
 st.title("K-Nearest Neighbors (KNN) Model Training & Testing")
@@ -61,19 +63,19 @@ if st.session_state.confirmed:
 
     # Widgets collect parameter inputs from user
     st.sidebar.header('Model Parameters')
-    test_size = st.sidebar.slider('Test Size (%)', min_value=5, max_value=50, value=20, step=5) / 100
-    cv_folds = st.sidebar.slider('CV Folds', min_value=2, max_value=10, value=5)
+    test_size = st.sidebar.slider('Test Size (%)', min_value=5, max_value=50, value=20, step=5, help = tooltips['general']['test_size']) / 100
+    cv_folds = st.sidebar.slider('CV Folds', min_value=2, max_value=10, value=5,  help = tooltips['general']['cv_folds'])
     st.sidebar.markdown('---')
-    n_neighbors_0 = st.sidebar.multiselect('n_neighbors', [3, 5, 7, 9, 11], default=[3, 5], accept_new_options=True, max_selections=5)
+    n_neighbors_0 = st.sidebar.multiselect('n_neighbors', [3, 5, 7, 9, 11], default=[3, 5], accept_new_options=True, max_selections=5, help=tooltips["knn"]["n_neighbors"])
     n_neighbors = []
     for item in n_neighbors_0:
             # Convert the item to an integer
             n_neighbors.append(int(item))
 
-    weights = st.sidebar.multiselect('weights', ['uniform', 'distance'], default=['uniform'])
-    metric = st.sidebar.multiselect('distance metric', ['cosine', 'chebyshev', 'euclidean', 'manhattan'], default=['euclidean'])
+    weights = st.sidebar.multiselect('weights', ['uniform', 'distance'], default=['uniform'], help=tooltips["knn"]["weights"])
+    metric = st.sidebar.multiselect('distance metric', ['cosine', 'chebyshev', 'euclidean', 'manhattan'], default=['euclidean'], help=tooltips["knn"]["metric"])
     st.sidebar.markdown('---')
-    seed = st.sidebar.number_input('Random State (seed)', min_value=0, max_value=2_147_483_647, value=42, step=1)
+    seed = st.sidebar.number_input('Random State (seed)', min_value=0, max_value=2_147_483_647, value=42, step=1, help = tooltips['general']['random_state'])
 
     # Store last-used hyperparameters to detect changes
     KNN_current_params = {
@@ -203,8 +205,8 @@ if st.session_state.confirmed:
             st.session_state.KNN_X_test_scaled = X_test_scaled
             st.session_state.KNN_y_test = y_test
             st.session_state.KNN_trained = True
+            debug_cross_val(st.session_state.KNN_cv_results)
 
-    debug_cross_val(st.session_state.KNN_cv_results)
     if st.session_state.KNN_trained is True:
         st.markdown("### 🏋 Training Set Operations")
         st.markdown("")

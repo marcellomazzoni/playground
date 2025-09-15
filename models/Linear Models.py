@@ -9,7 +9,9 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.pipeline import Pipeline
 # Assuming 'src.util' contains your custom utility functions.
 # If running standalone, replace with the mock functions provided below.
-from src.util import debug_cross_val, generate_model_formula_latex, get_numeric_x_and_y_from_df, show_centered_plot, plot_residuals, plot_actual_vs_predicted
+from src.util import debug_cross_val, generate_model_formula_latex, get_numeric_x_and_y_from_df, show_centered_plot, plot_residuals, plot_actual_vs_predicted, load_descriptions
+
+tooltips = load_descriptions()
 
 # ------------------------ Page Configuration ------------------------
 st.title("Linear Models Training & Testing 📈")
@@ -58,9 +60,9 @@ if st.session_state.confirmed:
 
     # --- Sidebar Widgets for Parameter Input ---
     st.sidebar.header('Model Parameters')
-    test_size = st.sidebar.slider('Test Size (%)', min_value=5, max_value=50, value=20, step=5) / 100
-    cv_folds = st.sidebar.slider('CV Folds', min_value=2, max_value=10, value=5, help="Number of folds for cross-validation.")
-    regularization = st.sidebar.multiselect("Regularization", ["None", "Lasso", "Ridge"], default="None", key="lm_regularization")
+    test_size = st.sidebar.slider('Test Size (%)', min_value=5, max_value=50, value=20, step=5, help = tooltips['general']['test_size']) / 100
+    cv_folds = st.sidebar.slider('CV Folds', min_value=2, max_value=10, value=5,  help = tooltips['general']['cv_folds'])
+    regularization = st.sidebar.multiselect("Regularization", ["None", "Lasso", "Ridge"], default=["None"], key="lm_regularization", help = tooltips["linear_models"]["regularization"])
 
     alphas = None
     if "Lasso" in regularization or "Ridge" in regularization:
@@ -68,11 +70,11 @@ if st.session_state.confirmed:
             'Alpha (Regularization Strength)',
             [0.001, 0.01, 0.1, 1.0, 10.0, 100.0],
             default=[0.1, 1.0],
-            help="Select multiple values for hyperparameter tuning."
+            help = tooltips["linear_models"]["alpha"]
         )
 
     st.sidebar.markdown('---')
-    seed = st.sidebar.number_input('Random State (seed)', min_value=0, max_value=2_147_483_647, value=42, step=1)
+    seed = st.sidebar.number_input('Random State (seed)', min_value=0, max_value=2_147_483_647, value=42, step=1, help = tooltips['general']['random_state'])
 
     # Store current hyperparameters to detect changes
     LM_current_params = {
@@ -93,7 +95,7 @@ if st.session_state.confirmed:
         st.session_state.LM_trained = False
         st.session_state.LM_to_test = False
         st.session_state.LM_tested = False
-        st.session_state.pop('LM_grid_search_results', None)
+        st.session_state.pop('LM_cv_results', None)
         st.session_state.pop('LM_test_metrics', None)
 
     # Detect parameter changes after the first training run
@@ -161,7 +163,7 @@ if st.session_state.confirmed:
             grid_search.fit(X_train, y_train)
             debug_cross_val(grid_search) # Optional: for server-side debugging
 
-            st.session_state.LM_grid_search_results = grid_search
+            st.session_state.LM_cv_results = grid_search
             st.session_state.LM_X_test = X_test
             st.session_state.LM_y_test = y_test
             st.session_state.LM_trained = True
@@ -170,7 +172,7 @@ if st.session_state.confirmed:
 
     # ------------------------ Step 3: Display Training & CV Results ------------------------
     if st.session_state.LM_trained:
-        cv_results = st.session_state.LM_grid_search_results
+        cv_results = st.session_state.LM_cv_results
         st.markdown("---")
         st.markdown("### 🏋️ Training Set Performance")
 
@@ -208,7 +210,7 @@ if st.session_state.confirmed:
         # ------------------------ Step 4: Test Set Evaluation (Compute) ------------------------
         if st.session_state.get('LM_to_test', False):
             with st.spinner("Running predictions on the test set..."):
-                best_model = st.session_state.LM_grid_search_results.best_estimator_
+                best_model = st.session_state.LM_cv_results.best_estimator_
                 X_test = st.session_state.LM_X_test
                 y_test = st.session_state.LM_y_test
                 y_pred = best_model.predict(X_test)
