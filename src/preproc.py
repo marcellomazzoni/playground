@@ -568,12 +568,12 @@ class Processor(Summarizer):
                     llm_request = st.text_area(
                         label="""**Describe your request for the LLM**.  
     IMPORTANT: Avoid using transformations that may cause data or label leakage""",
-                        value="Change the column from string to numeric by removing the $ dollar sign and keeping its numbers only",
+                        placeholder="[EXAMPLE] Change the column from string to numeric by removing the $ dollar sign and keeping its numbers only",
                         key=f"llm_req_{col}"
                     )
 
                     # Submit button for LLM request
-                    if st.button("Submit", key=f"llm_submit_{col}"):
+                    if st.button("Submit", key=f"llm_submit_continuous_{col}"):
                         with st.spinner("Generating code..."):
                             if st.session_state.llm_choice == "Ollama":
                                 code =  ask_llm_data_clean(df=df, df_name="df", column_name= col, request= llm_request)
@@ -615,7 +615,7 @@ class Processor(Summarizer):
                         comparison_df = pd.DataFrame({
                             f"Original ({col})": df[col],
                             "LLM suggestion": st.session_state.llm_new_series
-                        }).drop_duplicates().sample(
+                        }).sample(
                             n=min(10, len(df)), 
                             random_state=42
                         ).reset_index(drop=True)
@@ -722,9 +722,104 @@ class Processor(Summarizer):
                     llm_request = st.text_area(
                         label="""**Describe your request for the LLM**.  
     IMPORTANT: Avoid using transformations that may cause data or label leakage""",
-                        value="Change the column from string to numeric by removing the $ dollar sign and keeping its numbers only",
+                        placeholder="[EXAMPLE] Change the column from string to numeric by removing the $ dollar sign and keeping its numbers only",
                         key=f"llm_req_{col}"
                     )
+
+                    # Submit button for LLM request
+                    if st.button("Submit", key=f"llm_submit_categorical_{col}"):
+                        with st.spinner("Generating code..."):
+                            if st.session_state.llm_choice == "Ollama":
+                                code =  ask_llm_data_clean(df=df, df_name="df", column_name= col, request= llm_request)
+                            elif st.session_state.llm_choice == "Gemini":
+                                code =  ask_llm_data_clean(df=df, df_name="df", column_name= col, request= llm_request, connectivity = "api")
+
+                            if code:
+                                st.session_state.llm_code = code
+                                st.markdown("**LLM-proposed code:**")
+                                st.code(code, language="python")
+
+                                local_ns = {
+                                            "df": df.copy(),  # It's good practice to pass a copy to avoid side effects
+                                            "np": np,
+                                            "pd": pd,
+                                            "re": re
+                                        }
+                                try:
+                                    # exec(code, {}, local_ns)
+                                    exec(code, globals(), locals=local_ns)
+                                    # Cerca la variabile di output
+                                    new_series = local_ns.get("lm_transformed_column")
+                                    
+                                    if new_series is None:
+                                        st.warning("⚠️ The generated code did not create 'lm_transformed_column'.")
+                                    elif len(new_series) != len(df):
+                                        st.error("❌ The transformed series length does not match the DataFrame.")
+                                    else:
+                                        st.session_state.llm_new_series = new_series
+                                        st.success("✅ Transformation completed successfully!")
+                                except Exception as e:
+                                    st.error(f"❌ Code execution failed: {str(e)}")
+
+                    # Show results and options if we have a transformed series
+                    if st.session_state.llm_new_series is not None:
+                        st.markdown("#### Preview of Transformations")
+                        
+                        # Create comparison DataFrame
+                        comparison_df = pd.DataFrame({
+                            f"Original ({col})": df[col],
+                            "LLM suggestion": st.session_state.llm_new_series
+                        }).sample(
+                            n=min(10, len(df)), 
+                            random_state=42
+                        ).reset_index(drop=True)
+                        
+                        # Show comparison
+                        st.dataframe(comparison_df, width='stretch')
+                        
+                        # Actions for the transformed data
+                        action_col1, action_col2 = st.columns([2, 1])
+                        with action_col1:
+                            choice = st.radio(
+                                "Choose what to do with the transformed data:",
+                                ["Keep Both (new column)", "Replace Original", "Reject Changes"],
+                                key=f"llm_action_choice_{col}",
+                                horizontal=True
+                            )
+
+                        with action_col2:
+                            if choice == "Keep Both (new column)":
+                                new_col_name = st.text_input(
+                                    "New column name",
+                                    value=f"{col}_transformed",
+                                    key=f"llm_new_col_name_{col}"
+                                )
+                                if st.button("✅ Confirm", key=f"llm_confirm_{col}"):
+                                    if new_col_name in df.columns:
+                                        st.error("Column name already exists!")
+                                    else:
+                                        df[new_col_name] = st.session_state.llm_new_series
+                                        st.session_state.last_action = f"Added transformed data as '{new_col_name}'"
+                                        st.session_state.llm_new_series = None
+                                        st.session_state.llm_code = None
+                                        st.session_state['feature_importance_df'] = None
+                                        st.rerun()
+                                        
+                            elif choice == "Replace Original":
+                                if st.button("✅ Confirm Replace", key=f"llm_replace_{col}"):
+                                    df[col] = st.session_state.llm_new_series
+                                    st.session_state.last_action = f"Replaced '{col}' with transformed data"
+                                    st.session_state.llm_new_series = None
+                                    st.session_state.llm_code = None
+                                    st.session_state['feature_importance_df'] = None
+                                    st.rerun()
+                                    
+                            elif choice == "Reject Changes":
+                                if st.button("❌ Reject", key=f"llm_reject_{col}"):
+                                    st.session_state.llm_new_series = None
+                                    st.session_state.llm_code = None
+                                    st.session_state.last_action = "Rejected LLM transformation"
+                                    st.rerun()
                 
             # -------------------- Boolean --------------------
             elif vartype == "Boolean":
@@ -762,7 +857,7 @@ class Processor(Summarizer):
                     llm_request = st.text_area(
                         label="""**Describe your request for the LLM**.  
     IMPORTANT: Avoid using transformations that may cause data or label leakage""",
-                        value="Change the column from string to numeric by removing the $ dollar sign and keeping its numbers only",
+                        placeholder="[EXAMPLE] Change the column from string to numeric by removing the $ dollar sign and keeping its numbers only",
                         key=f"llm_req_{col}"
                     )
                     
