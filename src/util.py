@@ -76,7 +76,7 @@ def get_available_groq_models(api_key: str) -> list[str]:
         response = requests.get(url, headers=headers, timeout=5)
         if response.status_code == 200:
             data = response.json()
-            return [model['id'] for model in data.get('data', [])]
+            return [model['id'] for model in data.get('data', []) if '/' in model.get('id', '')] 
         else:
             return []
     except requests.exceptions.RequestException:
