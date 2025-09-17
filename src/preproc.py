@@ -393,9 +393,19 @@ class Processor(Summarizer):
                     st.rerun()
                 else:
                     st.warning("No variables selected for dropping.")
+        
+        n_duplicated_rows = df.duplicated().sum()
+        icon = " ⚠️" if n_duplicated_rows !=0 else ""
+        
+        with st.expander(f"Drop duplicates{icon}"):
             
-        with st.expander("Drop duplicates"):
-            subset_cols = st.multiselect("Subset of columns", list(df.columns))
+            if n_duplicated_rows != 0:
+                st.markdown(f"**{n_duplicated_rows}** duplicated rows in the whole dataset")
+                subset_cols = st.multiselect("Choose a subset of columns instead", options=list(df.columns), default=list(df.columns))
+            else:
+                st.markdown(f"**{n_duplicated_rows}** duplicated rows in the whole dataset")
+                subset_cols = st.multiselect("Choose a subset of columns instead", options=list(df.columns))
+                
             keep_first = st.checkbox("Keep first occurrence", value=True)
             if st.button("Apply", key="apply_drop_duplicates"):
                 before = len(df)
@@ -1328,10 +1338,28 @@ class Selector(Summarizer):
                 loadings = pca.components_.T  # shape: (n_features, 3)
                 loadings_scaled = pca.components_.T * np.sqrt(pca.explained_variance_)
                 feature_names = X.columns
+                    
+            cols = st.columns([2, 1])
+            
+            with cols[0]:
+                left_, mid, right_ = st.columns([1, 3, 1])
+                with mid:
+                    sample_percentage = st.slider(label = '',
+                                                  min_value=1, 
+                                                    max_value=100, 
+                                                    value=100, 
+                                                    step=1,
+                                                    format="%d%% of data points",
+                                                    width=500)
+                    
+                if sample_percentage < 100:
+                    df_plot = df_pca.sample(frac=sample_percentage/100, random_state=42)
+                else:
+                    df_plot = df_pca # Use the full dataframe if slider is at 100%
 
                 # Create scatter plot for points
                 fig = px.scatter_3d(
-                    df_pca,
+                    df_plot,
                     x='PC1',
                     y='PC2',
                     z='PC3',
@@ -1354,12 +1382,10 @@ class Selector(Summarizer):
                             showlegend=False
                         )
                     )
-            cols = st.columns([2, 1])
-            with cols[0]:
-                show_centered_plot(fig, width_ratio=3, plot_type='plotly', height=650)
-                # df_loadings = pd.DataFrame(loadings, index=X.columns, columns=['PC1', 'PC2', 'PC3'])
-                # st.dataframe(df_loadings, width='content')
-            # Loadings table (variables x principal components)
+
+                show_centered_plot(fig, width_ratio=3, plot_type='plotly', height=690)
+
+
             with cols[1]:
                 st.markdown("**PCA Raw Loadings**")
                 df_loadings = pd.DataFrame(loadings, index=X.columns, columns=['PC1', 'PC2', 'PC3'])
