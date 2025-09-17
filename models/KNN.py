@@ -111,7 +111,7 @@ if st.session_state.confirmed:
     if st.session_state.KNN_params_changed is True:
         st.warning("⚠️ Parameters have changed. Please re-train the model.")
 
-    show_session_state_debug()
+    # show_session_state_debug()
     # ------------------------ Step 2: Training (Compute) ------------------------
     if st.session_state.KNN_to_train is True and st.session_state.KNN_to_test is False:
         with st.spinner("Training model…"):
