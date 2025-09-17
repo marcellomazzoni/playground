@@ -150,7 +150,6 @@ if st.session_state.confirmed:
                     return_train_score=False
                 )
                 grid_search.fit(X_train_scaled, y_train_encoded)
-                debug_cross_val(grid_search)
 
                 best_idx = grid_search.best_index_
                 cv_mean = grid_search.cv_results_['mean_test_score'][best_idx]
@@ -180,7 +179,6 @@ if st.session_state.confirmed:
                     return_train_score=False
                 )
                 grid_search.fit(X_train_scaled, y_train)
-                debug_cross_val(grid_search)
 
                 best_idx = grid_search.best_index_
                 cv = grid_search.cv_results_
@@ -209,6 +207,7 @@ if st.session_state.confirmed:
             st.session_state.XGB_trained = True
 
     if st.session_state.XGB_trained is True:
+        debug_cross_val(st.session_state.XGB_cv_results)
         st.markdown("### 🏋 Training Set Operations")
         st.markdown("")
         st.markdown("#### 🎯 Best Parameters")

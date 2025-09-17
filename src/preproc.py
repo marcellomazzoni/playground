@@ -401,7 +401,7 @@ class Processor(Summarizer):
             
             if n_duplicated_rows != 0:
                 st.markdown(f"**{n_duplicated_rows}** duplicated rows in the whole dataset")
-                subset_cols = st.multiselect("Choose a subset of columns instead", options=list(df.columns), default=list(df.columns))
+                subset_cols = st.multiselect("Columns considered for duplicates removal", options=list(df.columns), default=list(df.columns))
             else:
                 st.markdown(f"**{n_duplicated_rows}** duplicated rows in the whole dataset")
                 subset_cols = st.multiselect("Choose a subset of columns instead", options=list(df.columns))

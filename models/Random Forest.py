@@ -147,7 +147,6 @@ if st.session_state.confirmed:
                     return_train_score=False  # keep it lean; set True if you want to display train CV too
                 )
                 grid_search.fit(X_train_scaled, y_train)
-                debug_cross_val(grid_search)
 
                 # NEW: capture CV summary (mean ± std for the selected scorer at best params)
                 best_idx = grid_search.best_index_
@@ -177,7 +176,6 @@ if st.session_state.confirmed:
                     return_train_score=False
                 )
                 grid_search.fit(X_train_scaled, y_train)
-                debug_cross_val(grid_search)
 
                 # NEW: capture CV summary for all provided scorers at best params.
                 best_idx = grid_search.best_index_
@@ -210,6 +208,7 @@ if st.session_state.confirmed:
                     
     # ------------------------ Step 2: Training (Display CV metrics) ------------------------
     if st.session_state.RF_trained is True:
+        debug_cross_val(st.session_state.RF_cv_results)
         st.markdown("### 🏋 Training Set Operations")
         st.markdown("")
         st.markdown("#### 🎯 Best Parameters")
