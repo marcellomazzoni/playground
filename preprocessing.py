@@ -46,7 +46,8 @@ for key, default in [
     ("llm_new_series", None),
     ("var_to_change", None),
     ("feature_importance_df", None),
-    ("llm_api_model_name", None)
+    ("llm_api_model_name", None),
+    ("sup_unsup_button", None)
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -73,22 +74,23 @@ if st.session_state['dataframe'] is None:
 
         case "Python script":
             install_code = st.text_area(label = "Your requirements, if any", 
-                                        placeholder  = """Just like you would write a requirements file! Like this:
+placeholder  = """Just like you would write a requirements file! Like this:
 '''
 streamlit
 scikit-learn
 scipy
 '''
 """,
-                                        key="install_code")
+key="install_code")
+            
             import_data_code = st.text_area(label = "Your code to retrieve data", 
-                                        placeholder  = """Must start with imports, must end with a pandas DataFrame named 'starting_dataframe'
+placeholder  = """Must start with imports, must end with a pandas DataFrame named 'starting_dataframe'
 e.g.
 
 import pandas as pd
 [...]
 starting_dataframe = a Pandas DataFrame object""",
-                                        key="uploader_code")
+key="uploader_code")
             
             if st.button("Run all", key=f"run_import_code"):
                         with st.spinner("Installing dependencies..."):
@@ -159,39 +161,68 @@ if st.session_state['dataframe'] is not None:
     # Target selection (numeric continuous only for now)
     # ----------------------------------------------------------------------------
     st.markdown("---")
-    st.markdown("## Variables Selection")
-    
-    st.markdown("### Target Variable Selection")
     selector_obj = Selector(df)
-    selector_obj.target_and_problem_selection()
-                
-    # st.write(st.session_state['target'])
     
-    st.markdown("### Variable Selection")
+    selector_obj.supervised_unsupervised_selection()
     
-    st.markdown("#### Analysis")
-    if st.toggle("Univariate"):
-        selector_obj.univariate_analysis()
-        
-    if st.toggle("Bivariate"):
-        selector_obj.bivariate_analysis()
-            
-    if st.toggle("Multivariate"):
-        st.markdown("#### Multivariate")
-        selector_obj.multivariate_analysis()
+    # You can add actions here based on the selected button
+    if st.session_state.sup_unsup_button == 'Supervised':
+        st.markdown("## Variables Selection")
+        st.markdown("### Target Variable Selection")
+        selector_obj.target_and_problem_selection()    
+        st.markdown("### Regressors Selection")
 
-    st.markdown("#### X variables")
-    selector_obj.feature_selection()
+        st.markdown("#### Analysis")
+        if st.toggle("Univariate"):
+            selector_obj.univariate_analysis()
+            
+        if st.toggle("Bivariate"):
+            selector_obj.bivariate_analysis()
+                
+        if st.toggle("Multivariate"):
+            selector_obj.multivariate_analysis()
+
+        st.markdown("#### X variables")
+        selector_obj.feature_selection()
+            
+        if st.button("Confirm Dataset and Target Variable"):
+            if st.session_state.get("target") and st.session_state.get("problem_type") and (
+                st.session_state["ml_dataset"] is not None and
+                not st.session_state["ml_dataset"].empty):
+                st.session_state["confirmed"] = True
+                st.rerun()
+                st.success("Dataset and target confirmed! Go to a model page from the sidebar.")
+            else:
+                st.error("Please select a valid target and confirm the problem type.")
+    
+    
+    elif st.session_state.sup_unsup_button == 'Unsupervised':
+        st.markdown("## Variables Selection")
+        st.markdown("### Variables Analysis")
         
-    if st.button("Confirm Dataset and Target Variable"):
-        if st.session_state.get("target") and st.session_state.get("problem_type") and (
-            st.session_state["ml_dataset"] is not None and
-            not st.session_state["ml_dataset"].empty):
-            st.session_state["confirmed"] = True
-            st.rerun()
-            st.success("Dataset and target confirmed! Go to a model page from the sidebar.")
-        else:
-            st.error("Please select a valid target and confirm the problem type.")
+        if st.toggle("Bivariate"):
+            selector_obj.bivariate_analysis()
+        
+        if st.toggle("Multivariate"):
+            selector_obj.multivariate_analysis()
+            
+        selector_obj.feature_selection()
+            
+        if st.button("Confirm Dataset"):
+            if st.session_state["ml_dataset"] is not None and not st.session_state["ml_dataset"].empty:
+                st.session_state["confirmed"] = True
+                st.rerun()
+                st.success("Dataset confirmed! Go to a model page from the sidebar.")
+            else:
+                st.error("Please select a valid target and confirm the problem type.")
+
+        
+    
+    
+    
+    
+    
+        
 
     st.markdown("---")
     # ----------------------------------------------------------------------------

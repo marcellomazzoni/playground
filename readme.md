@@ -74,6 +74,6 @@ Here are some of the known issues and planned future enhancements:
 
 *   `app.py`: The main Streamlit application file that sets up the navigation.
 *   `preprocessing.py`: The Streamlit page for data cleaning and preprocessing.
-*   `models/`: A directory containing the Streamlit pages for each machine learning model.
+*   `supervised_models/`: A directory containing the Streamlit pages for each machine learning model.
 *   `src/`: Contains helper modules.
 *   `requirements.txt`: The list of Python dependencies for the project.

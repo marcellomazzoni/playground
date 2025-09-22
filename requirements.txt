@@ -21,4 +21,5 @@ seaborn>=0.12
 statsmodels
 streamlit>=1.32
 streamlit-modal
+streamlit-extras
 xgboost

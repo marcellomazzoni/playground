@@ -12,7 +12,7 @@ import json
 # Correct: The decorator is part of the function's definition.
 @st.cache_data
 def load_descriptions():
-    with open('info/descriptions.json', 'r') as f:
+    with open('info/descriptions.json', 'r', encoding= 'utf-8') as f:
         return json.load(f)
     
 def show_session_state_debug():
@@ -355,10 +355,16 @@ def available_llm():
 
 def get_numeric_x_and_y_from_df(dataframe:pd.DataFrame, target:str):
     a_clean = dataframe.dropna()
-    X = a_clean.select_dtypes(include=['float64', 'int64']).drop([target], axis=1, errors='ignore')
-    y = a_clean[target]
+    if target:
+        X = a_clean.select_dtypes(include=['float64', 'int64']).drop([target], axis=1, errors='ignore')
+        y = a_clean[target]
+        return X, y 
+    else:
+        X = a_clean.select_dtypes(include=['float64', 'int64'])
+        return X
 
-    return X, y 
+
+
 
 def action_radio_for_column(col: str,
                             coltype: str,

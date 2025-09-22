@@ -7,6 +7,7 @@ from google.genai import types
 from dateutil.parser import parse as dateparse
 from dotenv import load_dotenv
 import streamlit as st
+from streamlit_extras.stylable_container import stylable_container
 import re 
 import time
 import plotly.graph_objects as go
@@ -939,6 +940,44 @@ class Selector(Summarizer):
     def __init__(self, df: pd.DataFrame):
        super().__init__(df)
 
+    def supervised_unsupervised_selection(self):
+        # Create two columns to place buttons side-by-side
+        col1, col2 = st.columns(2)
+
+        with col1:
+            # Use stylable_container for the first button
+            with stylable_container(
+                key="Supervised_container",
+                css_styles=f"""
+                div[data-testid="stButton"] button {{
+                    background-color: {'#1c83e1' if st.session_state.sup_unsup_button == 'Supervised' else '#eaf3fc'};
+                    color: {'white' if st.session_state.sup_unsup_button == 'Supervised' else 'black'};
+                }}
+                """
+            ):
+                if st.button("Supervised",width="stretch", key="Supervised"):
+                    st.session_state.sup_unsup_button = 'Supervised'
+                    st.rerun()
+
+        with col2:
+            # Use stylable_container for the second button
+            with stylable_container(
+                key="Unsupervised_container",
+                css_styles=f"""
+                div[data-testid="stButton"] button {{
+                    background-color: {'#1c83e1' if st.session_state.sup_unsup_button == 'Unsupervised' else '#eaf3fc'};
+                    color: {'white' if st.session_state.sup_unsup_button == 'Unsupervised' else 'black'};
+                }}
+                """
+            ):
+                if st.button("Unsupervised",width="stretch", key="Unsupervised"):
+                    st.session_state.sup_unsup_button = 'Unsupervised'
+                    st.session_state['target'] = None
+                    st.rerun()
+                    
+        st.markdown("---")
+        st.markdown("")
+
     def target_and_problem_selection(self):
         df = self.df
         numeric_summary_df = self.numeric_summary()
@@ -950,9 +989,10 @@ class Selector(Summarizer):
             st.markdown("##### Currently Numeric Variables")
             st.dataframe(numeric_summary_df[["Variable", "AutoType", "Type"]], use_container_width=False, hide_index=True)
 
-        eligible_targets = [c for c in df.columns 
-                            if autotype_dict[c] in ("Continuous", "Binary", "Categorical", "Boolean")]
-        
+        # eligible_targets = [c for c in df.columns 
+        #                     if autotype_dict[c] in ("Continuous", "Binary", "Categorical", "Boolean")]
+        eligible_targets = numeric_summary_df['Variable'].tolist()
+
         target = st.selectbox("Select the target variable:", [""] + eligible_targets)
         
         if target and target != "":
@@ -980,16 +1020,17 @@ class Selector(Summarizer):
     
     def feature_selection(self):
         df = self.df
-        
-        # Make sure a target is already chosen
-        if "target" not in st.session_state or st.session_state['target'] is None:
-            st.warning("Please select a target variable first in 'Target Variable Selection'")
-            return
-
-        target = st.session_state['target']
-
-        # Candidate features = all columns except target
-        candidate_vars = [c for c in df.columns if c != target]
+        if st.session_state['sup_unsup_button'] == "Supervised":
+            # Make sure a target is already chosen
+            if "target" not in st.session_state or st.session_state['target'] is None:
+                st.warning("Please select a target variable first in 'Target Variable Selection'")
+                return
+            target = st.session_state['target']
+            # Candidate features = all columns except target
+            candidate_vars = [c for c in df.columns if c != target]
+            
+        elif st.session_state['sup_unsup_button'] == "Unsupervised":
+            candidate_vars = df.columns
 
         # Multiselect for user choice
         selected_features = st.multiselect(
@@ -1001,25 +1042,24 @@ class Selector(Summarizer):
 
         # Always include target
         if selected_features:
-            final_features = [target] + selected_features
+            final_features = ([target] + selected_features) if st.session_state['sup_unsup_button'] == "Supervised" else selected_features
             st.session_state["ml_dataset"] = df[final_features]
             st.success(
-                f"Dataset prepared with {len(selected_features)} features + target. "
+                f"Dataset prepared with {len(final_features)} features. "
                 f"Shape: {st.session_state['ml_dataset'].shape}"
             )            
-            
-            
+                 
     def univariate_analysis(self):
+        
+        df = self.df
+        summary_df = self.summary_df
+        target = st.session_state['target']
 
         # Skip if no target was selected
         if "target" not in st.session_state or st.session_state['target'] is None:
             st.warning("Please select a target variable first")
             return
-            
-        df = self.df
-        summary_df = self.summary_df
-        target = st.session_state['target']
-        
+                    
         # Get non-target variables
         available_vars = [col for col in df.columns if col != target]
         # Variable selection
@@ -1142,57 +1182,76 @@ class Selector(Summarizer):
                 
     def bivariate_analysis(self):
         
-         # Skip if no target was selected
-        if "target" not in st.session_state or st.session_state['target'] is None: 
-            st.warning("Please select a target variable first")
-            return
-            
         df = self.df
-        target = st.session_state['target']
-        x_df = df.drop(columns=[target])
-        autotype_dict = self.autotype_dict
         
         # --- Correlation Matrix of Scatterplots ---
         st.markdown("**Comprehensive Correlation Matrix**")
         
-        if autotype_dict[target] in ["Categorical", "Binary"]:
-            choice = st.radio("Choose nature of correlation plots",
-                    ["By Target", "Plain"],
-                    key=f"bivariate_superv_unsuperv",
-                    horizontal=True
-                )
+        if st.session_state["sup_unsup_button"] == "Supervised":
+            # Skip if no target was selected
+            if "target" not in st.session_state or st.session_state['target'] is None: 
+                st.warning("Please select a target variable first")
+                return
             
-            selected_vars = st.multiselect("Select variables for matrix", 
-                            x_df.columns.tolist(), 
-                            default=x_df.columns[:len(x_df.columns)])
+            target = st.session_state['target']
+            x_df = df.drop(columns=[target])
+            autotype_dict = self.autotype_dict
+        
+            if autotype_dict[target] in ["Categorical", "Binary"]:
+                choice = st.radio("Choose nature of correlation plots",
+                        ["By Target", "Plain"],
+                        key=f"bivariate_superv_unsuperv",
+                        horizontal=True
+                    )
+            
+                match choice:
+                    case "By Target":
+                        selected_vars = st.multiselect("Select variables for matrix", 
+                                        x_df.columns.tolist(), 
+                                        default=x_df.columns[:len(x_df.columns)])
 
-            match choice:
-                case "By Target":
-                    if selected_vars:
-                        plot_vars = selected_vars
-                        fig = sns.pairplot(df[plot_vars], 
-                                         hue=target,  # Color by target variable
-                                         diag_kind="hist",
-                                         plot_kws={"s": 20, "alpha": 0.7},)
-                        # st.pyplot(fig)
-                        show_centered_plot(fig, width_ratio=5, plot_type='pyplot')
-                    else:
-                        st.warning("Please select at least one variable for analysis")
+                        if selected_vars:
+                            plot_vars = selected_vars
+                            fig = sns.pairplot(df[plot_vars + [target]], 
+                                            hue=target,  # Color by target variable
+                                            diag_kind="hist",
+                                            plot_kws={"s": 20, "alpha": 0.7},)
+                            # st.pyplot(fig)
+                            show_centered_plot(fig, width_ratio=5, plot_type='pyplot')
+                        else:
+                            st.warning("Please select at least one variable for analysis")
 
-                case "Plain":
-                    fig = sns.pairplot(df[selected_vars], 
-                                       diag_kind="hist", 
-                                       plot_kws={"s": 20, "alpha": 0.7})
-                    # st.pyplot(fig)
-                    show_centered_plot(fig, width_ratio=5, plot_type='pyplot')
+                    case "Plain":
+                        selected_vars = st.multiselect("Select variables for matrix", 
+                                        df.columns.tolist(), 
+                                        default=df.columns[:min(4, len(df.columns))])
+                        if selected_vars:
+                                                        
+                            fig = sns.pairplot(df[selected_vars], 
+                                            diag_kind="hist", 
+                                            plot_kws={"s": 20, "alpha": 0.7})
+                            # st.pyplot(fig)
+                            show_centered_plot(fig, width_ratio=5, plot_type='pyplot')
+                        else:
+                            st.warning("Please select at least one variable for analysis")
+
                     
-        else:
+            else:
+                selected_vars = st.multiselect("Select variables for matrix", 
+                                                df.columns.tolist(), 
+                                                default=df.columns[:min(4, len(df.columns))])
+
+                fig = sns.pairplot(df[selected_vars], diag_kind="hist", plot_kws={"s": 20, "alpha": 0.7})
+                show_centered_plot(fig, width_ratio=5, plot_type='pyplot')
+                
+        elif st.session_state["sup_unsup_button"] == "Unsupervised":
             selected_vars = st.multiselect("Select variables for matrix", 
-                df.columns.tolist(), 
-                default=df.columns[:min(4, len(df.columns))])
+                                            df.columns.tolist(), 
+                                            default=df.columns[:min(4, len(df.columns))])
 
             fig = sns.pairplot(df[selected_vars], diag_kind="hist", plot_kws={"s": 20, "alpha": 0.7})
-            st.pyplot(fig)
+            show_centered_plot(fig, width_ratio=5, plot_type='pyplot')
+
 
         # --- Custom Bivariate Section ---
         # st.markdown("**Custom Bivariate Plot**")
@@ -1201,20 +1260,121 @@ class Selector(Summarizer):
             # Categorical-Categorical: Heatmap
 
     def multivariate_analysis(self):
-        # Skip if no target was selected
-        if "target" not in st.session_state or st.session_state['target'] is None: 
-            st.warning("Please select a target variable first")
-            return
+        if st.session_state["sup_unsup_button"] == "Supervised":
         
-        if st.checkbox("Show Variable Importance", key="toggle_show_var_imp"):
+            # Skip if no target was selected
+            if "target" not in st.session_state or st.session_state['target'] is None: 
+                st.warning("Please select a target variable first")
+                return
+        
+            if st.checkbox("Show Variable Importance", key="toggle_show_var_imp"):
+                with st.spinner("Getting variable importance via ML…"):
+                    if st.session_state['feature_importance_df'] is None:
+                        df = self.df
+                        target = st.session_state['target']
+                        X, y = get_numeric_x_and_y_from_df(dataframe = df, target =  target)
+                        scaler = StandardScaler()
+                        X_scaled = scaler.fit_transform(X)
+
+                        t = self.autotype_dict[target]            
+                        # Simple mapping based on your auto types
+                        type_to_problem = {
+                                "Continuous":  "regression",
+                                "Binary":      "classification_binary",
+                                "Categorical": "classification_multi",
+                                "Boolean":     "classification",
+                            }
+                        detected = type_to_problem.get(t)
+
+                        # CLASSIFICATION
+                        if detected in ["classification_multi", "classification_binary"]:
+                            rf = RandomForestClassifier(random_state=42)
+                            param_grid = [{
+                                'n_estimators': [10,30,60,100,200],
+                                'max_depth': [5, 10, 20, 30],
+                                'min_samples_split': [2, 5, 10]
+                            }]
+                            
+                            grid_search = HalvingGridSearchCV(
+                                rf,
+                                param_grid, 
+                                cv=5,
+                                scoring='accuracy',
+                                refit = True,
+                                return_train_score=False  # keep it lean; set True if you want to display train CV too
+                            )
+                            
+                            grid_search.fit(X_scaled, y)
+                            # HEre is the variable importance
+                            importances = grid_search.best_estimator_.feature_importances_
+                            importance_df = pd.DataFrame({
+                                'Feature': X.columns,
+                                'Importance': importances
+                            }).sort_values(by='Importance', ascending=False)
+                                
+                        # REGRESSION
+                        elif detected == "regression":
+                            rf = RandomForestRegressor(random_state=42)
+                            param_grid = [{
+                                'n_estimators': [10,30,60,100,200],
+                                'max_depth': [5, 10, 20, 30],
+                                'min_samples_split': [2, 5, 10]
+                            }]
+                            
+                            grid_search = HalvingGridSearchCV(rf,
+                                                            param_grid,
+                                                            cv=5,
+                                                            scoring='neg_root_mean_squared_error', # <-- Use a single string here
+                                                            refit=True, # refit will be set to the scoring metric
+                                                            return_train_score=False
+                                                            )
+                            grid_search.fit(X_scaled, y)
+
+                            # HEre is the variable importance
+                            importances = grid_search.best_estimator_.feature_importances_
+                            importance_df = pd.DataFrame({
+                                'Feature': X.columns,
+                                'Importance': importances
+                            }).sort_values(by='Importance', ascending=False)
+                            
+                            st.session_state['feature_importance_df'] = importance_df
+
+                    else: # already computed - cache
+                        importance_df = st.session_state['feature_importance_df']
+                        # Here is the horizontal bar chart of variable importance
+
+                    fig = px.bar(
+                        title="Feature Importance from Random Forest - optimizing for predictive power",
+                        data_frame = importance_df.sort_values(by='Importance', ascending=True),  # reverse order so largest is on top
+                        x='Importance',
+                        y='Feature',
+                        orientation='h',
+                        text='Importance',  # Add value labels
+                    )
+                    fig.update_traces(texttemplate='%{text:.2f}', textposition='inside')  # Format and position labels
+                    fig.update_layout(
+                        yaxis=dict(
+                            categoryorder='total ascending',  # ensures largest is at top
+                            tickfont=dict(size=18)           # make y labels bigger
+                        ),
+                        xaxis=dict(tickfont=dict(size=16)),  # make x labels bigger
+                        bargap=0.5                           # make bars thinner
+                    )
+                                        
+                show_centered_plot(fig, width_ratio=5, plot_type='plotly')        
+
+        if st.checkbox("Show 3D PCA Plot", key="toggle_show_3d_pca"):
             with st.spinner("Getting variable importance via ML…"):
-                if st.session_state['feature_importance_df'] is None:
-                    df = self.df
+                
+                df = self.df
+                
+                if st.session_state["sup_unsup_button"] == "Supervised":
+                    if ("target" not in st.session_state or st.session_state['target'] is None):
+                        st.warning("Please select a target variable first")
+                        return
+                
                     target = st.session_state['target']
                     X, y = get_numeric_x_and_y_from_df(dataframe = df, target =  target)
-                    scaler = StandardScaler()
-                    X_scaled = scaler.fit_transform(X)
-
                     t = self.autotype_dict[target]            
                     # Simple mapping based on your auto types
                     type_to_problem = {
@@ -1224,115 +1384,22 @@ class Selector(Summarizer):
                             "Boolean":     "classification",
                         }
                     detected = type_to_problem.get(t)
-
-                    # CLASSIFICATION
-                    if detected in ["classification_multi", "classification_binary"]:
-                        rf = RandomForestClassifier(random_state=42)
-                        param_grid = [{
-                            'n_estimators': [10,30,60,100,200],
-                            'max_depth': [5, 10, 20, 30],
-                            'min_samples_split': [2, 5, 10]
-                        }]
-                        
-                        grid_search = HalvingGridSearchCV(
-                            rf,
-                            param_grid, 
-                            cv=5,
-                            scoring='accuracy',
-                            refit = True,
-                            return_train_score=False  # keep it lean; set True if you want to display train CV too
-                        )
-                        
-                        grid_search.fit(X_scaled, y)
-                        # HEre is the variable importance
-                        importances = grid_search.best_estimator_.feature_importances_
-                        importance_df = pd.DataFrame({
-                            'Feature': X.columns,
-                            'Importance': importances
-                        }).sort_values(by='Importance', ascending=False)
-                            
-                    # REGRESSION
-                    elif detected == "regression":
-                        rf = RandomForestRegressor(random_state=42)
-                        param_grid = [{
-                            'n_estimators': [10,30,60,100,200],
-                            'max_depth': [5, 10, 20, 30],
-                            'min_samples_split': [2, 5, 10]
-                        }]
-                        
-                        grid_search = HalvingGridSearchCV(rf,
-                                                        param_grid,
-                                                        cv=5,
-                                                        scoring='neg_root_mean_squared_error', # <-- Use a single string here
-                                                        refit=True, # refit will be set to the scoring metric
-                                                        return_train_score=False
-                                                        )
-                        grid_search.fit(X_scaled, y)
-
-                        # HEre is the variable importance
-                        importances = grid_search.best_estimator_.feature_importances_
-                        importance_df = pd.DataFrame({
-                            'Feature': X.columns,
-                            'Importance': importances
-                        }).sort_values(by='Importance', ascending=False)
-                        
-                        st.session_state['feature_importance_df'] = importance_df
-
-                else: # already computed - cache
-                    importance_df = st.session_state['feature_importance_df']
-                    # Here is the horizontal bar chart of variable importance
-
-                fig = px.bar(
-                    title="Feature Importance from Random Forest - optimizing for predictive power",
-                    data_frame = importance_df.sort_values(by='Importance', ascending=True),  # reverse order so largest is on top
-                    x='Importance',
-                    y='Feature',
-                    orientation='h',
-                    text='Importance',  # Add value labels
-                )
-                fig.update_traces(texttemplate='%{text:.2f}', textposition='inside')  # Format and position labels
-                fig.update_layout(
-                    yaxis=dict(
-                        categoryorder='total ascending',  # ensures largest is at top
-                        tickfont=dict(size=18)           # make y labels bigger
-                    ),
-                    xaxis=dict(tickfont=dict(size=16)),  # make x labels bigger
-                    bargap=0.5                           # make bars thinner
-                )
-                                    
-            show_centered_plot(fig, width_ratio=5, plot_type='plotly')        
-
-        if st.checkbox("Show 3D PCA Plot", key="toggle_show_3d_pca"):
-            with st.spinner("Getting variable importance via ML…"):
-                if "target" not in st.session_state or st.session_state['target'] is None:
-                    st.warning("Please select a target variable first")
-                    return
-                df = self.df
-                target = st.session_state['target']
-
-                X, y = get_numeric_x_and_y_from_df(dataframe = df, target =  target)
+                    
+                else:
+                    X = get_numeric_x_and_y_from_df(dataframe = df, target =  None)
+                    detected = None
 
                 if X.shape[1] < 3: # Sanity check
                     st.warning("Need at least 3 numeric features for 3D PCA plot.")
                     return
-                
-                t = self.autotype_dict[target]            
-                    # Simple mapping based on your auto types
-                type_to_problem = {
-                        "Continuous":  "regression",
-                        "Binary":      "classification_binary",
-                        "Categorical": "classification_multi",
-                        "Boolean":     "classification",
-                    }
-                detected = type_to_problem.get(t)
-            
 
                 X_scaled = StandardScaler().fit_transform(X)
                 pca = PCA(n_components=3)
                 pca_result = pca.fit_transform(X_scaled)
 
                 df_pca = pd.DataFrame(pca_result, columns=['PC1', 'PC2', 'PC3'])
-                df_pca['target'] = y
+                if st.session_state["sup_unsup_button"] == "Supervised":
+                    df_pca['target'] = y 
 
                 # Get loadings (components)
                 loadings = pca.components_.T  # shape: (n_features, 3)
@@ -1363,8 +1430,8 @@ class Selector(Summarizer):
                     x='PC1',
                     y='PC2',
                     z='PC3',
-                    color='target' if detected != "regression" else None,
-                    title='3D PCA scores Plot' + (" Colored by Target" if detected != "regression" else "")
+                    color='target' if (detected != "regression") and (detected is not None) else None,
+                    title='3D PCA scores Plot' + (" Colored by Target" if (detected != "regression") and (detected is not None) else "")
                 )
 
                 # Add vectors for each regressor
