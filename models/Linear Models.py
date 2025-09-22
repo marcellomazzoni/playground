@@ -161,7 +161,6 @@ if st.session_state.confirmed:
                 n_jobs=-1
             )
             grid_search.fit(X_train, y_train)
-            debug_cross_val(grid_search) # Optional: for server-side debugging
 
             st.session_state.LM_cv_results = grid_search
             st.session_state.LM_X_test = X_test
@@ -172,6 +171,7 @@ if st.session_state.confirmed:
 
     # ------------------------ Step 3: Display Training & CV Results ------------------------
     if st.session_state.LM_trained:
+        debug_cross_val(st.session_state.LM_cv_results) # Optional: for server-side debugging
         cv_results = st.session_state.LM_cv_results
         st.markdown("---")
         st.markdown("### 🏋️ Training Set Performance")

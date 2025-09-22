@@ -111,7 +111,7 @@ if st.session_state.confirmed:
     if st.session_state.KNN_params_changed is True:
         st.warning("⚠️ Parameters have changed. Please re-train the model.")
 
-    show_session_state_debug()
+    # show_session_state_debug()
     # ------------------------ Step 2: Training (Compute) ------------------------
     if st.session_state.KNN_to_train is True and st.session_state.KNN_to_test is False:
         with st.spinner("Training model…"):
@@ -148,7 +148,6 @@ if st.session_state.confirmed:
                     return_train_score=False
                 )
                 grid_search.fit(X_train_scaled, y_train)
-                debug_cross_val(grid_search)
 
                 best_idx = grid_search.best_index_
                 cv_mean = grid_search.cv_results_['mean_test_score'][best_idx]
@@ -205,9 +204,9 @@ if st.session_state.confirmed:
             st.session_state.KNN_X_test_scaled = X_test_scaled
             st.session_state.KNN_y_test = y_test
             st.session_state.KNN_trained = True
-            debug_cross_val(st.session_state.KNN_cv_results)
 
     if st.session_state.KNN_trained is True:
+        debug_cross_val(st.session_state.KNN_cv_results)
         st.markdown("### 🏋 Training Set Operations")
         st.markdown("")
         st.markdown("#### 🎯 Best Parameters")

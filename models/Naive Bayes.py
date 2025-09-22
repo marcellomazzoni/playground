@@ -128,7 +128,6 @@ if st.session_state.confirmed:
                 return_train_score=False
             )
             grid_search.fit(X_train_scaled, y_train)
-            debug_cross_val(grid_search)
 
             best_idx = grid_search.best_index_
             cv_mean = grid_search.cv_results_['mean_test_score'][best_idx]
@@ -148,6 +147,7 @@ if st.session_state.confirmed:
 
     # ------------------------ Step 2: Training (Display CV metrics) ------------------------
     if st.session_state.NB_trained is True:
+        debug_cross_val(st.session_state.NB_cv_results)
         st.markdown("### 🏋 Training Set Operations")
         st.markdown("")
         st.markdown("#### 🎯 Best Parameters")

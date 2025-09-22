@@ -14,7 +14,7 @@ from src.util import choose_llm, show_session_state_debug
 
 # import requests  # will import lazily inside ask_llm to avoid import errors if requests not installed
 choose_llm()
-show_session_state_debug()
+# show_session_state_debug()
 # ----------------------------------------------------------------------------
 # UI – Reset and title
 # ----------------------------------------------------------------------------
