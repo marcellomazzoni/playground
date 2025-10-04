@@ -1450,13 +1450,34 @@ class Selector(Summarizer):
                         )
                     )
 
-                show_centered_plot(fig, width_ratio=3, plot_type='plotly', height=690)
+                show_centered_plot(fig, width_ratio=3, plot_type='plotly', height=690, width=550)
 
 
             with cols[1]:
                 st.markdown("**PCA Raw Loadings**")
                 df_loadings = pd.DataFrame(loadings, index=X.columns, columns=['PC1', 'PC2', 'PC3'])
                 st.dataframe(df_loadings, width='content')
+                                
+                # Create the data for the DataFrame
+                data = {
+                    'Principal Component': ['PC 1', 'PC 2', 'PC 3'],
+                    'Variance Explained (%)': [
+                        pca.explained_variance_ratio_[0] * 100,
+                        pca.explained_variance_ratio_[1] * 100,
+                        pca.explained_variance_ratio_[2] * 100
+                    ]
+                }
+
+                pca_pve_df = pd.DataFrame(data)
+                st.markdown("**Portion of Variance Explained by each Component**")
+                st.dataframe(pca_pve_df,
+                            hide_index=True,
+                            width='content',
+                            # Optional: Configure the format for the percentage column
+                            column_config={"Variance Explained (%)": st.column_config.NumberColumn(
+                                format="%.2f %%"
+                                )})
+
 
 
 

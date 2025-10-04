@@ -6,8 +6,11 @@ import os
 import pandas as pd
 import numpy as np
 from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LinearRegression # For example
 import matplotlib.pyplot as plt
 import json
+
 
 # Correct: The decorator is part of the function's definition.
 @st.cache_data
@@ -440,6 +443,7 @@ def show_centered_plot(plot_obj, width_ratio=2.4, plot_type='pyplot', width='str
         plot_type (str): Type of plot ('pyplot', 'plotly', 'matplotlib')
     """
     left_, mid, right_ = st.columns([1, width_ratio, 1])
+    
     with mid:
         match plot_type.lower():
             case 'pyplot' | 'matplotlib':
@@ -615,7 +619,7 @@ def plot_residuals(y_true: pd.Series, y_pred: pd.Series):
 
 # FUNCTIONS FOR MODELS EXPLAINABILI
 
-def generate_model_formula_latex(y: pd.Series, X: pd.DataFrame, model_type: str, model=None):
+def generate_model_formula_latex_old(y: pd.Series, X: pd.DataFrame, model_type: str, model=None):
     """
     Generates a LaTeX formula for a linear or logistic regression model,
     handling scikit-learn pipelines and different model attribute shapes.
@@ -681,6 +685,112 @@ def generate_model_formula_latex(y: pd.Series, X: pd.DataFrame, model_type: str,
         formula = rf'{target_name} = {linear_part}'
     elif model_type == 'logistic_regression':
         # Using sigma for sigmoid function
+        formula = rf'P({target_name}=1) = \sigma({linear_part})'
+    else:
+        formula = r'\text{Invalid Model Type}'
+    
+    return formula
+
+
+def generate_model_formula_latex(
+    y: pd.Series, 
+    X: pd.DataFrame, 
+    model_type: str, 
+    model=None,
+    unscale_coeffs=False,
+    scaler=None
+):
+    """
+    Generates a LaTeX formula for a linear or logistic regression model.
+    Can convert coefficients back to their original scale if a scaler is provided.
+
+    Args:
+        y (pd.Series): The pandas Series representing the target variable.
+        X (pd.DataFrame): The DataFrame containing the feature variables.
+        model_type (str): 'linear_regression' or 'logistic_regression'.
+        model (object, optional): A fitted scikit-learn model or pipeline.
+        unscale_coeffs (bool, optional): If True, converts coefficients back to their
+                                        original scale. Defaults to False.
+        scaler (StandardScaler, optional): The fitted StandardScaler object. 
+                                           Required if unscale_coeffs is True.
+
+    Returns:
+        str: A LaTeX-formatted string of the model formula.
+    """
+    target_name = y.name.replace('_', r'\_')
+    
+    # --- Step 1: Extract the actual model from the pipeline if necessary ---
+    estimator = None
+    if model:
+        if isinstance(model, Pipeline):
+            # Assumes the final step of the pipeline is the model, often named 'model'
+            # Adjust 'model' if your pipeline step has a different name
+            estimator = model.steps[-1][1] 
+        else:
+            estimator = model
+
+    # --- Step 2: Build the linear part of the equation ---
+    linear_part_list = []
+    
+    # Handle the intercept and coefficient terms
+    if estimator and hasattr(estimator, 'intercept_') and hasattr(estimator, 'coef_'):
+        intercept_val = estimator.intercept_
+        coeffs_val = estimator.coef_
+
+        # --- NEW: Unscaling Logic ---
+        if unscale_coeffs:
+            if scaler is None or not isinstance(scaler, StandardScaler):
+                raise ValueError(
+                    "A fitted StandardScaler instance must be provided via the 'scaler' "
+                    "parameter when unscale_coeffs=True."
+                )
+            
+            # Ensure dimensions match
+            if coeffs_val.flatten().shape[0] != scaler.n_features_in_:
+                raise ValueError(
+                    "The number of model coefficients does not match the number of "
+                    "features in the scaler."
+                )
+
+            # Convert coefficients back to original scale
+            unscaled_coeffs = coeffs_val.flatten() / scaler.scale_
+            unscaled_intercept = intercept_val[0] - np.sum(
+                (coeffs_val.flatten() * scaler.mean_) / scaler.scale_
+            )
+            
+            # Use the unscaled values for formula generation
+            final_coeffs = unscaled_coeffs
+            final_intercept = unscaled_intercept
+        else:
+            # Use the original (scaled) values
+            final_coeffs = coeffs_val.flatten()
+            final_intercept = intercept_val[0] if isinstance(intercept_val, np.ndarray) else intercept_val
+
+        # Append intercept
+        linear_part_list.append(f"{final_intercept:.2f}")
+        
+        # Append coefficients
+        for feature, coef in zip(X.columns, final_coeffs):
+            feature_latex = feature.replace('_', r'\_')
+            sign = '+' if coef >= 0 else '-'
+            term = f"{sign} {abs(coef):.2f} \\times x_{{{feature_latex}}}"
+            linear_part_list.append(term)
+            
+        linear_part = ' '.join(linear_part_list).replace('+ -', '-')
+
+    else:
+        # Generic formula if no model is provided
+        linear_part_list.append(r'\beta_0')
+        for i, feature in enumerate(X.columns):
+            feature_latex = feature.replace('_', r'\_')
+            term = rf'+ \beta_{{{i+1}}} x_{{{feature_latex}}}'
+            linear_part_list.append(term)
+        linear_part = ' '.join(linear_part_list)
+
+    # --- Step 3: Assemble the final formula based on model type ---
+    if model_type == 'linear_regression':
+        formula = rf'{target_name} = {linear_part}'
+    elif model_type == 'logistic_regression':
         formula = rf'P({target_name}=1) = \sigma({linear_part})'
     else:
         formula = r'\text{Invalid Model Type}'
