@@ -13,7 +13,7 @@ import json
 
 
 # Correct: The decorator is part of the function's definition.
-@st.cache_data
+# @st.cache_data
 def load_descriptions():
     with open('info/descriptions.json', 'r', encoding= 'utf-8') as f:
         return json.load(f)

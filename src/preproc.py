@@ -1217,7 +1217,9 @@ class Selector(Summarizer):
                                             diag_kind="hist",
                                             plot_kws={"s": 20, "alpha": 0.7},)
                             # st.pyplot(fig)
-                            show_centered_plot(fig, width_ratio=5, plot_type='pyplot')
+                            show_centered_plot(fig, 
+                                               width_ratio= max(1, min(len(selected_vars)*0.8 +1 , 5)), 
+                                               plot_type='pyplot')
                         else:
                             st.warning("Please select at least one variable for analysis")
 
@@ -1231,7 +1233,8 @@ class Selector(Summarizer):
                                             diag_kind="hist", 
                                             plot_kws={"s": 20, "alpha": 0.7})
                             # st.pyplot(fig)
-                            show_centered_plot(fig, width_ratio=5, plot_type='pyplot')
+                            show_centered_plot(fig, width_ratio = max(1, min(len(selected_vars)*0.8 , 5)),
+                                                                      plot_type='pyplot')
                         else:
                             st.warning("Please select at least one variable for analysis")
 
@@ -1242,7 +1245,8 @@ class Selector(Summarizer):
                                                 default=df.columns[:min(4, len(df.columns))])
 
                 fig = sns.pairplot(df[selected_vars], diag_kind="hist", plot_kws={"s": 20, "alpha": 0.7})
-                show_centered_plot(fig, width_ratio=5, plot_type='pyplot')
+                show_centered_plot(fig, width_ratio = max(1, min(len(selected_vars)*0.8  , 5)), 
+                                   plot_type='pyplot')
                 
         elif st.session_state["sup_unsup_button"] == "Unsupervised":
             selected_vars = st.multiselect("Select variables for matrix", 
@@ -1250,7 +1254,8 @@ class Selector(Summarizer):
                                             default=df.columns[:min(4, len(df.columns))])
 
             fig = sns.pairplot(df[selected_vars], diag_kind="hist", plot_kws={"s": 20, "alpha": 0.7})
-            show_centered_plot(fig, width_ratio=5, plot_type='pyplot')
+            show_centered_plot(fig, width_ratio= max(1, min(len(selected_vars)*0.8 , 5)),
+                               plot_type='pyplot')
 
 
         # --- Custom Bivariate Section ---

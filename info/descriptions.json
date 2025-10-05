@@ -46,6 +46,20 @@
     "learning_rate": "Also known as 'eta', this parameter scales the contribution of each new tree. A smaller learning rate shrinks the influence of each tree, requiring more trees to be added to the model.\n\n- **Low value (e.g., 0.01)**: Makes the boosting process more conservative, requiring a higher `n_estimators` but often leading to a more robust model.\n- **High value (e.g., 0.2)**: The model learns faster but is more prone to overfitting.",
     "subsample": "This parameter defines the fraction of the training data (rows) to be randomly sampled for growing each tree. This introduces randomness to help prevent overfitting.\n\n- **Value of 1.0**: All training data is used for each tree.\n- **Value < 1.0 (e.g., 0.8)**: Each tree is trained on a random 80% of the data, which can make the model more robust to noise.",
     "colsample_bytree": "This defines the fraction of features (columns) to be randomly sampled when constructing each tree. It's another effective technique for preventing overfitting.\n\n- **Value of 1.0**: All features are considered for each tree.\n- **Value < 1.0 (e.g., 0.8)**: A random 80% of features are used, encouraging diversity among the trees and preventing the model from relying too heavily on a few dominant features."
-  }
+  },
 
+  "general_unsupervised":{
+    "k_range": "Explain why the user can choose the range of K to try",
+    "elbow_inertia": "Explain how to read chart of elbow with inertia as metric - how to choose K",
+    "silhouette": "Explain how to read the chart of silhouette score - how to choose K",
+    "metrics_table": "Explain inertia, silhouette and calinsky-harabatz",
+    "cluster_profiles_mean": "Explain the table of means, clusters by variables"
+  },
+
+  "kmeans":{
+    "initialization_method": "",
+    "number_of_initializations": "",
+    "max_iterations": ""
+
+  }
 }
