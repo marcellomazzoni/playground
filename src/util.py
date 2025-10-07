@@ -5,6 +5,8 @@ import requests
 import os
 import pandas as pd
 import numpy as np
+import plotly.express as px
+from typing import Dict
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression # For example
@@ -796,3 +798,61 @@ def generate_model_formula_latex(
         formula = r'\text{Invalid Model Type}'
     
     return formula
+
+
+def generate_blue_color_map(
+    df: pd.DataFrame, 
+    class_column: str,
+    min_lightness: float = 0.30,
+    max_lightness: float = 0.95
+) -> Dict[str, str]:
+    """
+    Generates a consistent color map with shades of blue for the unique 
+    classes in a DataFrame column.
+
+    This function is ideal for creating a visually cohesive theme for charts 
+    where you want each class to have a distinct but related color.
+
+    Args:
+        df (pd.DataFrame): 
+            The input DataFrame containing the data.
+        class_column (str): 
+            The name of the column that contains the class labels (e.g., 'cluster').
+        min_lightness (float, optional): 
+            The starting point of the color scale (0=darkest, 1=lightest).
+            Defaults to 0.30 to avoid very dark, almost black blues.
+        max_lightness (float, optional): 
+            The ending point of the color scale (0=darkest, 1=lightest).
+            Defaults to 0.95 to avoid very light, almost white blues.
+
+    Returns:
+        Dict[str, str]: 
+            A dictionary mapping each unique class label (as a string) to a 
+            corresponding hex color code from the blue palette.
+    """
+    # 1. Find all unique classes in the specified column and sort them.
+    # Sorting ensures that the color mapping is always consistent and not
+    # dependent on the order of data in the DataFrame.
+    try:
+        unique_classes = sorted(df[class_column].unique())
+    except KeyError:
+        raise KeyError(f"Error: Column '{class_column}' not found in the DataFrame.")
+    
+    n_classes = len(unique_classes)
+
+    if n_classes == 0:
+        return {}
+    
+    # 2. Generate a list of 'n' distinct blue colors.
+    # We create evenly spaced points within our desired lightness range
+    # and then sample the built-in "Blues" color scale at these points.
+    sample_points = np.linspace(min_lightness, max_lightness, n_classes)
+    blue_palette = px.colors.sample_colorscale("Blues", sample_points)
+    
+    # 3. Create the mapping dictionary.
+    # The keys (class labels) are cast to strings. This is a best practice
+    # for plotting libraries like Plotly and Seaborn, as it ensures they
+    # are treated as discrete categories.
+    color_map = {str(cls): color for cls, color in zip(unique_classes, blue_palette)}
+    
+    return color_map

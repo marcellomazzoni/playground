@@ -7,7 +7,7 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import silhouette_score, calinski_harabasz_score
 from sklearn.decomposition import PCA
-from src.util import show_centered_plot, load_descriptions # Assuming you have these helpers
+from src.util import show_centered_plot, load_descriptions, generate_blue_color_map# Assuming you have these helpers
 
 # Load tooltips if available
 tooltips = load_descriptions() 
@@ -46,20 +46,19 @@ if st.session_state.confirmed:
 
     st.sidebar.header('Parameters')
     # Parameters for finding optimal K
+    # K-Means algorithm parameters
     min_max = st.sidebar.slider("Select K range",
                             min_value=0,
                             max_value=40,
                             value=(2, 20),
                             step=1,
-                            help = tooltips['general_unsupervised']['k_range'])    
+                            help = tooltips['kmeans']['k_range'])    
     
     k_min = min_max[0]
     k_max = min_max[1]
     
-    # K-Means algorithm parameters
-    st.sidebar.markdown('---')
     init_method = st.sidebar.selectbox('Initialization Method', ['k-means++', 'random'], help = tooltips['kmeans']['initialization_method'])
-    n_init = st.sidebar.slider('Number of Initializations (n_init)', 2, 20, 10, help = tooltips['kmeans']['number_of_initializations'])
+    n_init = st.sidebar.slider('Number of Initializations', 2, 20, 10, help = tooltips['kmeans']['number_of_initializations'])
     max_iter = st.sidebar.number_input('Max Iterations per Initialization', 100, 1000, 300, help = tooltips['kmeans']['max_iterations'])
     
     st.sidebar.markdown('---')
@@ -202,6 +201,7 @@ if st.session_state.confirmed:
                 clusters = final_kmeans.fit_predict(data_scaled)
                 data_subset['cluster'] = clusters
                 
+                
                 st.session_state.KMEANS_final_model = final_kmeans
                 st.session_state.KMEANS_clustered_data = data_subset
                 st.session_state.KMEANS_final_model_trained = True
@@ -210,7 +210,7 @@ if st.session_state.confirmed:
     # ------------------------ Step 4: Display Final Model Results ------------------------
     if st.session_state.KMEANS_final_model_trained:
         clustered_data = st.session_state.KMEANS_clustered_data
-        
+                
         st.markdown("#### 📊 Cluster Sizes")
         cluster_counts = clustered_data['cluster'].value_counts().sort_index()
         # st.bar_chart(cluster_counts)
@@ -226,7 +226,7 @@ if st.session_state.confirmed:
                 pie_data,
                 names='cluster',
                 values='count',
-                title='Data Points distributions'
+                title='Data Points distributions',
             )
             # Customize the hover information and the text on the slices
             fig_pie.update_traces(
@@ -264,8 +264,7 @@ if st.session_state.confirmed:
                 scatter = sns.scatterplot(
                     x=data_pca_2[:, 0], 
                     y=data_pca_2[:, 1], 
-                    hue=clustered_data['cluster'], 
-                    palette='viridis', 
+                    hue=clustered_data['cluster'],
                     ax=ax
                 )
                 ax.set_title("Clusters projected onto 2 Principal Components")
