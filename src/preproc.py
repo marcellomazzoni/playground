@@ -957,6 +957,9 @@ class Selector(Summarizer):
             ):
                 if st.button("Supervised",width="stretch", key="Supervised"):
                     st.session_state.sup_unsup_button = 'Supervised'
+                    st.session_state['target'] = None
+                    st.session_state["ml_dataset"] = None
+                    st.session_state["confirmed"] = None 
                     st.rerun()
 
         with col2:
@@ -973,6 +976,8 @@ class Selector(Summarizer):
                 if st.button("Unsupervised",width="stretch", key="Unsupervised"):
                     st.session_state.sup_unsup_button = 'Unsupervised'
                     st.session_state['target'] = None
+                    st.session_state["ml_dataset"] = None
+                    st.session_state["confirmed"] = None 
                     st.rerun()
                     
         st.markdown("---")
@@ -1015,8 +1020,9 @@ class Selector(Summarizer):
                 st.session_state["problem_type"] = None
             else:
                 st.session_state["problem_type"] = detected
-        # else:
-        #     st.session_state['target'] = None
+                
+        else:
+            st.session_state['target'] = None
     
     def feature_selection(self):
         df = self.df
@@ -1429,6 +1435,8 @@ class Selector(Summarizer):
                 else:
                     df_plot = df_pca # Use the full dataframe if slider is at 100%
 
+                # df_plot['target'] = df_plot['target'].astype(str) TODO
+                
                 # Create scatter plot for points
                 fig = px.scatter_3d(
                     df_plot,
@@ -1436,7 +1444,8 @@ class Selector(Summarizer):
                     y='PC2',
                     z='PC3',
                     color='target' if (detected != "regression") and (detected is not None) else None,
-                    title='3D PCA scores Plot' + (" Colored by Target" if (detected != "regression") and (detected is not None) else "")
+                    title='3D PCA scores Plot' + (" Colored by Target" if (detected != "regression") and (detected is not None) else ""),
+                    
                 )
 
                 # Add vectors for each regressor

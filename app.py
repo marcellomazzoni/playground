@@ -39,7 +39,9 @@ if st.session_state.get("sup_unsup_button") == "Supervised":
 elif st.session_state.get("sup_unsup_button") == "Unsupervised":   
     if st.session_state.get("confirmed"):
          pages["Clustering methods"] = [
-                st.Page("unsupervised_models/Kmeans.py",           title="K-Means",  icon=":material/science:"),]
+                st.Page("unsupervised_models/Kmeans.py",           title="K-Means",  icon=":material/science:"),
+                st.Page("unsupervised_models/DBSCAN.py",           title="DBSCAN",  icon=":material/science:"),
+                st.Page("unsupervised_models/Hierarchical.py",     title="Hierarchical",  icon=":material/science:"),]
 
 
 pg = st.navigation(pages, position="sidebar", expanded=True)
