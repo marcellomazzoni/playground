@@ -33,10 +33,8 @@ if hasattr(st.session_state.get('uploaded_file', None), 'name'):
 # ------------------------ Session State Init ------------------------
 if 'KNN_trained' not in st.session_state:
     st.session_state.KNN_trained = False
-
 if 'KNN_to_train' not in st.session_state:
     st.session_state.KNN_to_train = False
-
 if 'KNN_tested' not in st.session_state:
     st.session_state.KNN_tested = False
 if 'KNN_to_test' not in st.session_state:
