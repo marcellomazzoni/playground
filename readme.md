@@ -93,7 +93,6 @@ Here are some of the known issues and planned future enhancements:
 *   `unsupervised_models/`: A directory containing the Streamlit pages for each unsupervised learning model.
 *   `src/`: Contains helper modules, including `preproc.py` for data processing logic.
 *   `requirements.txt`: The list of Python dependencies for the project.
-*   `setup.py`: The setup file for the project.
 *   `.streamlit/`: Contains Streamlit configuration files.
 *   `info/`: Contains informational files.
 *   `honest work meme.jpg`: An inspirational image for the developers.
