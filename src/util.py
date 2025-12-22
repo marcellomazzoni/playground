@@ -398,6 +398,8 @@ def action_radio_for_column(col: str,
         case "Binary":
             base_options = [
                 "Impute Missing Values", 
+                "Label Encoding", 
+                "One-hot Encoding",
                 "Rename"]
             
         case _:

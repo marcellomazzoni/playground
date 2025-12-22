@@ -72,7 +72,8 @@ def ask_llm_data_clean(df, df_name, column_name, request, connectivity='local', 
 This is the origin dataframe name: {df_name}
 The column you must use to generate the new series: {column_name}
 Other columns: {df.columns}
-My request: \n{request}
+My request:
+{request}
 """
 
     code = "" # Initialize code variable
@@ -152,11 +153,12 @@ My request: \n{request}
 
         case "local": # Using OLLAMA for local testing
             import requests # lazy import so the app still runs if requests is missing
+            
             url = "http://localhost:11434/api/generate"
             full_prompt = f"{coder_data_cleaner_system_prompt}\n{user_prompt}"
 
             data = {
-                "model": "qwen2:7b-instruct", # Replace with your model name
+                "model": st.session_state.ollama_model_name,
                 "prompt": full_prompt,
                 "stream": False,
             }
@@ -1061,13 +1063,15 @@ class Selector(Summarizer):
         summary_df = self.summary_df
         target = st.session_state['target']
 
-        # Skip if no target was selected
-        if "target" not in st.session_state or st.session_state['target'] is None:
-            st.warning("Please select a target variable first")
-            return
+        # # Skip if no target was selected
+        # if "target" not in st.session_state or st.session_state['target'] is None:
+        #     st.warning("Please select a target variable first")
+        #     return
                     
         # Get non-target variables
-        available_vars = [col for col in df.columns if col != target]
+        # available_vars = [col for col in df.columns if col != target]
+        available_vars = [col for col in df.columns]
+
         # Variable selection
         selected_var = st.selectbox("Select variable for analysis:", [""] + available_vars)
         

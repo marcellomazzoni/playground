@@ -48,9 +48,9 @@ if st.session_state.confirmed:
     # Parameters for finding optimal K
     # K-Means algorithm parameters
     min_max = st.sidebar.slider("Select K range",
-                            min_value=0,
-                            max_value=40,
-                            value=(2, 20),
+                            min_value=2,
+                            max_value=30,
+                            value=(3, 8),
                             step=1,
                             help = tooltips['kmeans']['k_range'])    
     
